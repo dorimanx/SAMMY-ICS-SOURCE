@@ -38,13 +38,25 @@ int exynos4_busfreq_lock(unsigned int nId, enum busfreq_level_request lvl)
 
 	switch (lvl) {
 	case BUS_L0:
-		qos_value = 400000;
+		qos_value = 400266;
 		break;
 	case BUS_L1:
-		qos_value = 267000;
+		qos_value = 400200;
 		break;
 	case BUS_L2:
-		qos_value = 133000;
+		qos_value = 267200;
+		break;
+	case BUS_L3:
+		qos_value = 267160;
+		break;
+	case BUS_L4:
+		qos_value = 160160;
+		break;
+	case BUS_L5:
+		qos_value = 133133;
+		break;
+	case BUS_L6:
+		qos_value = 100100;
 		break;
 	default:
 		qos_value = 0;
