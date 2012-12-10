@@ -21,4 +21,11 @@ config C2C_IPC_ENABLE
 	default n
 	help
 	  Enable C2C IPC via the Shared Memory.
+
+config C2C_IPC_ONLY
+	bool "Enable C2C only for IPC purpose"
+	default n
+	help
+	  Enable C2C only for IPC purpose.
+
 endif # SAMSUNG_C2C

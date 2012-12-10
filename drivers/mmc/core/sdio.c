@@ -912,6 +912,12 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 {
 	int i, err = 0;
 
+#if defined(CONFIG_WIMAX_CMC)
+	if ((host->pm_flags & MMC_PM_IGNORE_SUSPEND_RESUME)
+				&& (host->index == 2))
+		goto out;
+#endif
+
 	for (i = 0; i < host->card->sdio_funcs; i++) {
 		struct sdio_func *func = host->card->sdio_func[i];
 		if (func && sdio_func_present(func) && func->dev.driver) {
@@ -942,12 +948,19 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 	}
 #endif
 
+out:
 	return err;
 }
 
 static int mmc_sdio_resume(struct mmc_host *host)
 {
 	int i, err = 0;
+
+#if defined(CONFIG_WIMAX_CMC)
+	if ((host->pm_flags & MMC_PM_IGNORE_SUSPEND_RESUME)
+			&& (host->index == 2))
+		goto out;
+#endif
 
 	BUG_ON(!host);
 	BUG_ON(!host->card);
@@ -990,6 +1003,7 @@ static int mmc_sdio_resume(struct mmc_host *host)
 		}
 	}
 
+out:
 	return err;
 }
 
@@ -1058,11 +1072,7 @@ static const struct mmc_bus_ops mmc_sdio_ops = {
 	.alive = mmc_sdio_alive,
 };
 
-#if (defined(CONFIG_MACH_M0) && defined(CONFIG_TARGET_LOCALE_EUR)) || \
-	((defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_M0)) && \
-	defined(CONFIG_TARGET_LOCALE_KOR))
-extern void print_epll_con0(void);
-#endif
+
 /*
  * Starting point for SDIO card init.
  */
@@ -1078,13 +1088,6 @@ int mmc_attach_sdio(struct mmc_host *host)
 	err = mmc_send_io_op_cond(host, 0, &ocr);
 	if (err)
 		return err;
-
-#if (defined(CONFIG_MACH_M0) && defined(CONFIG_TARGET_LOCALE_EUR)) || \
-	((defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_M0)) && \
-	defined(CONFIG_TARGET_LOCALE_KOR))
-	/* a sdio module is detected. print EPLL */
-	print_epll_con0();
-#endif
 
 	mmc_attach_bus(host, &mmc_sdio_ops);
 	if (host->ocr_avail_sdio)
