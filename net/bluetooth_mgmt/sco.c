@@ -100,8 +100,11 @@ static struct sco_conn *sco_conn_add(struct hci_conn *hcon, __u8 status)
 	struct hci_dev *hdev = hcon->hdev;
 	struct sco_conn *conn = hcon->sco_data;
 
-	if (conn || status)
+	if (conn || status) {
+		if (conn && (!conn->hcon))
+			conn->hcon = hcon;
 		return conn;
+	}
 
 	conn = kzalloc(sizeof(struct sco_conn), GFP_ATOMIC);
 	if (!conn)
@@ -904,6 +907,11 @@ static void sco_conn_ready(struct sco_conn *conn)
 
 		bacpy(&bt_sk(sk)->src, conn->src);
 		bacpy(&bt_sk(sk)->dst, conn->dst);
+
+		if (!conn->hcon) {
+				BT_ERR("conn->hcon = NULL");
+				/* to do */
+		}
 
 		hci_conn_hold(conn->hcon);
 		__sco_chan_add(conn, sk, parent);
