@@ -188,7 +188,7 @@ void set_dvfs_lock(struct synaptics_drv_data *data, bool en)
 static void forced_release_fingers(struct synaptics_drv_data *data)
 {
 	int i;
-#if 0
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 	printk(KERN_DEBUG "[TSP] %s\n", __func__);
 #endif
 	for (i = 0; i < MAX_TOUCH_NUM; ++i) {
@@ -212,30 +212,32 @@ static int synaptics_ts_set_func_info(struct synaptics_drv_data *data)
 	u16 base_addr = FUNC_ADDR_FIRST;
 	u16 last_addr = FUNC_ADDR_LAST;
 
-	for (i = 0; i <= PAGE_MAX; i += PAGE_MAX) {
-		base_addr += i;
-		last_addr += i;
+	for (i = 0; i <= PAGE_MAX; i += NEXT_PAGE) {
+		base_addr = i + FUNC_ADDR_FIRST;
+		last_addr = i + FUNC_ADDR_LAST;
 		for (addr = base_addr; addr >= last_addr;
 			addr -= FUNC_ADDR_SIZE) {
 			synaptics_ts_read_block(data,
 				addr, buffer, 6);
-			if (data->debug) {
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+			if (0x0 != buffer[5]) {
 				printk(KERN_DEBUG
 					"[TSP] function : 0x%x\n",
 					buffer[5]);
 				printk(KERN_DEBUG
 					"[TSP] query_base_addr : 0x%x\n",
-					buffer[0]);
+					buffer[0] + i);
 				printk(KERN_DEBUG
 					"[TSP] command_base_addr : 0x%x\n",
-					buffer[1]);
+					buffer[1] + i);
 				printk(KERN_DEBUG
 					"[TSP] control_base_addr : 0x%x\n",
-					buffer[2]);
+					buffer[2] + i);
 				printk(KERN_DEBUG
 					"[TSP] data_base_addr : 0x%x\n",
-					buffer[3]);
+					buffer[3] + i);
 			}
+#endif
 			switch (buffer[5]) {
 			case 0x01:
 				SET_FUNC_ADDR(01, i);
@@ -253,12 +255,23 @@ static int synaptics_ts_set_func_info(struct synaptics_drv_data *data)
 				SET_FUNC_ADDR(54, i);
 				break;
 
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+			case 0x51:
+				SET_FUNC_ADDR(51, i);
+				break;
+#endif
+
 			default:
 				break;
 			}
 		}
 	}
-	return cnt;
+
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+	cnt--;
+#endif
+
+	return (4 != cnt);
 }
 
 static int synaptics_ts_read_dummy(struct synaptics_drv_data *data)
@@ -318,13 +331,23 @@ static void inform_charger_connection(struct charger_callbacks *cb, int mode)
 		set_charger_connection_bit(data);
 }
 
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+static void set_palm_threshold(struct synaptics_drv_data *data)
+{
+	u8 threshold = data->pdata->palm_threshold;
+
+	synaptics_ts_write_data(data,
+		data->f11.control_base_addr + 17, threshold);
+}
+#endif
+
 static int synaptics_ts_set_func(struct synaptics_drv_data *data)
 {
 	int i = 0;
 
 	printk(KERN_DEBUG "[TSP] %s\n", __func__);
 
-	if (synaptics_ts_set_func_info(data) != 4) {
+	if (synaptics_ts_set_func_info(data)) {
 		pr_err("[TSP] failed to get function info.\n");
 		forced_fw_update(data);
 		synaptics_ts_set_func_info(data);
@@ -356,6 +379,13 @@ static int check_interrupt_status(struct synaptics_drv_data *data,
 		return -EIO;
 	}
 
+	/* esd detect */
+	if ((buf[0] & 0x0F) == 0x03) {
+		pr_err("[TSP] esd detect\n");
+		data->pdata->hw_reset();
+		return 0;
+	}
+
 	/* read the finger states */
 	addr = data->f11.data_base_addr;
 	ret = synaptics_ts_read_block(data,
@@ -383,7 +413,14 @@ static void synaptics_ts_read_points(struct synaptics_drv_data *data,
 	bool finger_pressed = false;
 	int ret = 0;
 	int id = 0;
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+	u8 palm;
+	u8 surface_data[4];
+	u16 palm_addr = data->f11.data_base_addr + 53;
+	u16 surface_addr = data->f51.data_base_addr;
+#endif
 	u16 addr = data->f11.data_base_addr + 3;
+	u16 x = 0, y = 0;
 
 	for (id = 0; id < MAX_TOUCH_NUM; id++,
 		addr += sizeof(struct finger_data)) {
@@ -394,6 +431,24 @@ static void synaptics_ts_read_points(struct synaptics_drv_data *data,
 				pr_err("[TSP] failed to read finger[%u]\n", id);
 				return ;
 			}
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+			ret = synaptics_ts_read_block(data,
+					palm_addr, &palm, 1);
+			if (ret < 0) {
+				pr_err("[TSP] failed to read palm data\n");
+				return ;
+			}
+
+			palm = (palm & 0x02) ? 1 : 0;
+
+			ret = synaptics_ts_read_block(data,
+					surface_addr + (id * 4),
+					surface_data, 4);
+			if (ret < 0) {
+				pr_err("[TSP] failed to read surface data\n");
+				return ;
+			}
+#endif
 
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 			if (data->debug)
@@ -405,13 +460,25 @@ static void synaptics_ts_read_points(struct synaptics_drv_data *data,
 					buf.z);
 #endif
 
-			data->finger[id].x =
-				(buf.x_msb << 4) +
-				(buf.xy_lsb & 0x0F);
-			data->finger[id].y =
-				(buf.y_msb << 4) +
-				(buf.xy_lsb >> 4);
+			x = (buf.x_msb << 4) + (buf.xy_lsb & 0x0F);
+			y = (buf.y_msb << 4) + (buf.xy_lsb >> 4);
 
+			if (data->pdata->swap_xy)
+				swap(x, y);
+
+			if (data->pdata->invert_x)
+				x = data->pdata->max_x - x;
+
+			if (data->pdata->invert_y)
+				y = data->pdata->max_y - y;
+
+			data->finger[id].x = x;
+			data->finger[id].y = y;
+
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+			data->finger[id].w_max = surface_data[2];
+			data->finger[id].w_min = surface_data[3];
+#else
 			if ((buf.w >> 4) >
 				(buf.w & 0x0F)) {
 				data->finger[id].w_max =
@@ -424,6 +491,7 @@ static void synaptics_ts_read_points(struct synaptics_drv_data *data,
 				data->finger[id].w_max =
 					(buf.w & 0x0F);
 			}
+#endif
 
 			data->finger[id].z = buf.z;
 			if (data->finger[id].z) {
@@ -438,29 +506,40 @@ static void synaptics_ts_read_points(struct synaptics_drv_data *data,
 							data->finger[id].x,
 							data->finger[id].y,
 							data->finger[id].z);
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+						printk(KERN_DEBUG
+							"[TSP] palm %d, surface_data %d, %d\n",
+							palm,
+							surface_data[0],
+							surface_data[1]);
+#endif
 #else
 						printk(KERN_DEBUG
-							"s7301 %d P\n", id);
+							"[TSP] ID: %d P\n", id);
 #endif
 				}
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-				else if (data->debug)
+				else if (data->debug) {
 					printk(KERN_DEBUG
 						"[TSP] ID: %d, x: %d, y: %d, z: %d\n",
 						id,
 						data->finger[id].x,
 						data->finger[id].y,
 						data->finger[id].z);
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+					printk(KERN_DEBUG
+						"[TSP] palm %d, surface_data %d, %d\n",
+						palm,
+						surface_data[0],
+						surface_data[1]);
+#endif
+				}
 #endif
 			}
 		} else if (MT_STATUS_PRESS == data->finger[id].status) {
 			data->finger[id].status = MT_STATUS_RELEASE;
 			data->finger[id].z = 0;
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 				printk(KERN_DEBUG "[TSP] ID: %d\n", id);
-#else
-				printk(KERN_DEBUG "s7301 %d R\n", id);
-#endif
 		}
 	}
 
@@ -483,6 +562,13 @@ static void synaptics_ts_read_points(struct synaptics_drv_data *data,
 				data->finger[id].z,
 				data->finger[id].w_max,
 				data->finger[id].w_min);
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+			input_report_abs(data->input, ABS_MT_WIDTH_MAJOR,
+				surface_data[0]);
+			input_report_abs(data->input, ABS_MT_ANGLE,
+				surface_data[1]);
+			input_report_abs(data->input, ABS_MT_PALM, palm);
+#endif
 			break;
 
 		case MT_STATUS_RELEASE:
@@ -573,6 +659,9 @@ static void init_function_data_dwork(struct work_struct *work)
 
 	data->ready = true;
 	set_charger_connection_bit(data);
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+	set_palm_threshold(data);
+#endif
 
 	if (data->client->irq) {
 		ret = request_threaded_irq(data->client->irq, NULL,
@@ -671,6 +760,8 @@ static int __init synaptics_ts_probe(struct i2c_client *client,
 	ddata->gpio = pdata->gpio_attn;
 	ddata->x_line = pdata->x_line;
 	ddata->y_line = pdata->y_line;
+	if (pdata->swap_xy)
+		swap(pdata->x_line, pdata->y_line);
 
 	/* Register callbacks */
 	/* To inform tsp , charger connection status*/
@@ -705,15 +796,23 @@ static int __init synaptics_ts_probe(struct i2c_client *client,
 
 	input_mt_init_slots(input, MAX_TOUCH_NUM);
 	input_set_abs_params(input, ABS_MT_POSITION_X, 0,
-			     pdata->max_x, 0, 0);
+		pdata->max_x, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_Y, 0,
-			     pdata->max_y, 0, 0);
+		pdata->max_y, 0, 0);
 	input_set_abs_params(input, ABS_MT_PRESSURE, 0,
-			     pdata->max_pressure, 0, 0);
+		pdata->max_pressure, 0, 0);
 	input_set_abs_params(input, ABS_MT_TOUCH_MAJOR, 0,
-			     pdata->max_width, 0, 0);
+		pdata->max_width, 0, 0);
 	input_set_abs_params(input, ABS_MT_TOUCH_MINOR, 0,
-			     pdata->max_width, 0, 0);
+		pdata->max_width, 0, 0);
+#if defined(CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH)
+	input_set_abs_params(input, ABS_MT_WIDTH_MAJOR, 0,
+		pdata->x_line * pdata->y_line, 0, 0);
+	input_set_abs_params(input, ABS_MT_ANGLE,
+		0, 179, 0, 0);
+	input_set_abs_params(input, ABS_MT_PALM,
+		0, 1, 0, 0);
+#endif
 
 	ret = input_register_device(input);
 	if (ret) {
@@ -793,4 +892,3 @@ module_exit(synaptics_ts_exit);
 MODULE_AUTHOR("junki671.min@samsung.com");
 MODULE_DESCRIPTION("Driver for Synaptics S7301 Touchscreen Controller");
 MODULE_LICENSE("GPL");
-

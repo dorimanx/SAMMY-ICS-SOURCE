@@ -69,6 +69,7 @@ static struct pm_qos_request_list entry = {};
 #define S5C73M3_FW_ZD_PATH		"/lib/firmware/SlimISP_ZD.bin"
 #define S5C73M3_FW_ZE_PATH		"/lib/firmware/SlimISP_ZE.bin"
 #define S5C73M3_FW_ZF_PATH		"/lib/firmware/SlimISP_ZF.bin"
+#define S5C73M3_FW_ZG_PATH		"/lib/firmware/SlimISP_ZG.bin"
 
 #else /* CONFIG_VIDEO_SLP_S5C73M3 */
 
@@ -254,6 +255,13 @@ static struct s5c73m3_control s5c73m3_ctrls[] = {
 		.step = 1,
 		.value = 0,
 		.default_value = 0,
+	}, {
+		.id = V4L2_CID_PHYSICAL_ROTATION,
+		.minimum = IS_ROTATION_0,
+		.maximum = IS_ROTATION_MAX - 1,
+		.step = 1,
+		.value = IS_ROTATION_90,
+		.default_value = IS_ROTATION_90,
 	},
 #else
 	{
@@ -1542,20 +1550,32 @@ retry:
 	switch (val) {
 	case FOCUS_MODE_AUTO:
 	case FOCUS_MODE_INFINITY:
-		state->focus.mode = val;
+		if (state->focus.mode != FOCUS_MODE_CONTINOUS_PICTURE) {
+			err = s5c73m3_writeb(sd, S5C73M3_AF_MODE,
+				S5C73M3_AF_MODE_NORMAL);
+			CHECK_ERR(err);
+		} else {
+			err = s5c73m3_writeb(sd, S5C73M3_AF_CON,
+				S5C73M3_AF_CON_STOP);
+			CHECK_ERR(err);
+		}
 
-		err = s5c73m3_writeb(sd, S5C73M3_AF_MODE,
-			S5C73M3_AF_MODE_NORMAL);
-		CHECK_ERR(err);
+		state->focus.mode = val;
 		state->caf_mode = S5C73M3_AF_MODE_NORMAL;
 		break;
 
 	case FOCUS_MODE_MACRO:
-		state->focus.mode = val;
+		if (state->focus.mode != FOCUS_MODE_CONTINOUS_PICTURE_MACRO) {
+			err = s5c73m3_writeb(sd, S5C73M3_AF_MODE,
+				S5C73M3_AF_MODE_MACRO);
+			CHECK_ERR(err);
+		} else {
+			err = s5c73m3_writeb(sd, S5C73M3_AF_CON,
+				S5C73M3_AF_CON_STOP);
+			CHECK_ERR(err);
+		}
 
-		err = s5c73m3_writeb(sd, S5C73M3_AF_MODE,
-			S5C73M3_AF_MODE_MACRO);
-		CHECK_ERR(err);
+		state->focus.mode = val;
 		state->caf_mode = S5C73M3_AF_MODE_MACRO;
 		break;
 
@@ -2293,6 +2313,10 @@ static int s5c73m3_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 		cam_err("V4L2_CID_CAM_STABILIZE is not supported\n");
 		break;
 
+	case V4L2_CID_PHYSICAL_ROTATION:
+		ctrl->value = IS_ROTATION_90;
+		break;
+
 	default:
 		if ((ctrl->id & 0xFFFF) <= 2000) {
 			cam_err("no such control id(PRIVATE_BASE) %d, value %d\n",
@@ -2403,6 +2427,8 @@ static int s5c73m3_load_fw(struct v4l2_subdev *sd)
 		fp = filp_open(S5C73M3_FW_ZE_PATH, O_RDONLY, 0);
 	else if ((state->sensor_fw[0] == 'Z') && (state->sensor_fw[1] == 'F'))
 		fp = filp_open(S5C73M3_FW_ZF_PATH, O_RDONLY, 0);
+	else if ((state->sensor_fw[0] == 'Z') && (state->sensor_fw[1] == 'G'))
+		fp = filp_open(S5C73M3_FW_ZG_PATH, O_RDONLY, 0);
 	else
 		fp = filp_open(S5C73M3_FW_PATH, O_RDONLY, 0);
 
@@ -2680,6 +2706,34 @@ static int s5c73m3_enum_framesizes(struct v4l2_subdev *sd,
 	struct v4l2_frmsizeenum *fsize)
 {
 	struct s5c73m3_state *state = to_state(sd);
+	unsigned int i;
+	int index = fsize->index;
+
+	/*
+	 * Compatible with current fimc code, we have added this condition.
+	 * Fimc use this subdev call for getting width and height of current
+	 * state.
+	 */
+	if (index != -1) {
+		if (index < ARRAY_SIZE(preview_frmsizes)) {
+			for (i = 0; i < ARRAY_SIZE(preview_frmsizes); ++i) {
+				/*
+				 * If we need to check pixelformat, please add
+				 * condition at this line.
+				 */
+				if (index == i) {
+					fsize->type =
+						V4L2_FRMSIZE_TYPE_DISCRETE;
+					fsize->discrete.width =
+						preview_frmsizes[i].width;
+					fsize->discrete.height =
+						preview_frmsizes[i].height;
+					return 0;
+				}
+			}
+		}
+		return -EINVAL;
+	}
 
 	/*
 	* The camera interface should read this value, this is the resolution
@@ -3248,7 +3302,7 @@ static int __devinit s5c73m3_probe(struct i2c_client *client,
 	v4l2_i2c_subdev_init(sd, client, &s5c73m3_ops);
 
 #ifdef CAM_DEBUG
-	state->dbg_level = CAM_DEBUG | CAM_TRACE;
+	state->dbg_level = CAM_DEBUG;
 #endif
 
 #ifdef CONFIG_BUSFREQ_OPP
