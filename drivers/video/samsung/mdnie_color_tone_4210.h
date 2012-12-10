@@ -156,7 +156,36 @@ static const unsigned short tune_color_tone_3[] = {
 	END_SEQ, 0x0000,
 };
 
-static const unsigned short tune_negative_lcd_cabc_on[] = {
+#if defined(CONFIG_FB_MDNIE_PWM)
+static const unsigned short tune_negative[] = {
+	/*start p4 note negative cabcoff*/
+	0x0001, 0x0060,	/*SCR LABC HDTR*/
+	0x002c, 0x0fff,	/*DNR bypass*/
+	0x002d, 0x1900,	/*DNR bypass*/
+	0x002e, 0x0000,	/*DNR bypass*/
+	0x002f, 0x0fff,	/*DNR bypass*/
+	0x003a, 0x0009,	/*HDTR CS*/
+	0x003f, 0x0000,	/*CS GAIN*/
+	/*0x00b4,0x4640,	Count PWM*/
+	0x00c8, 0xffff,	/*kb R	SCR*/
+	0x00c9, 0xffff,	/*gc R*/
+	0x00ca, 0x0000,	/*rm R*/
+	0x00cb, 0x0000,	/*yw R*/
+	0x00cc, 0xffff,	/*kb G*/
+	0x00cd, 0x0000,	/*gc G*/
+	0x00ce, 0xffff,	/*rm G*/
+	0x00cf, 0x0000,	/*yw G*/
+	0x00d0, 0xff00,	/*kb B*/
+	0x00d1, 0xff00,	/*gc B*/
+	0x00d2, 0xff00,	/*rm B*/
+	0x00d3, 0xff00,	/*yw B*/
+	0x00d5, 0x0000,	/*GAMMA off*/
+	0x0028, 0x0000,	/*Register Mask*/
+	/*end*/
+	END_SEQ, 0x0000,
+};
+
+static const unsigned short tune_negative_cabc[] = {
 	/*start p4 note negative cabcon*/
 	0x0001, 0x0070,	/*SCR LABC CABC HDTR*/
 	0x002c, 0x0fff,	/*DNR bypass*/
@@ -189,36 +218,8 @@ static const unsigned short tune_negative_lcd_cabc_on[] = {
 	END_SEQ, 0x0000,
 
 };
-
-static const unsigned short tune_negative_lcd_cabc_off[] = {
-	/*start p4 note negative cabcoff*/
-	0x0001, 0x0060,	/*SCR LABC HDTR*/
-	0x002c, 0x0fff,	/*DNR bypass*/
-	0x002d, 0x1900,	/*DNR bypass*/
-	0x002e, 0x0000,	/*DNR bypass*/
-	0x002f, 0x0fff,	/*DNR bypass*/
-	0x003a, 0x0009,	/*HDTR CS*/
-	0x003f, 0x0000,	/*CS GAIN*/
-	/*0x00b4,0x4640,	Count PWM*/
-	0x00c8, 0xffff,	/*kb R	SCR*/
-	0x00c9, 0xffff,	/*gc R*/
-	0x00ca, 0x0000,	/*rm R*/
-	0x00cb, 0x0000,	/*yw R*/
-	0x00cc, 0xffff,	/*kb G*/
-	0x00cd, 0x0000,	/*gc G*/
-	0x00ce, 0xffff,	/*rm G*/
-	0x00cf, 0x0000,	/*yw G*/
-	0x00d0, 0xff00,	/*kb B*/
-	0x00d1, 0xff00,	/*gc B*/
-	0x00d2, 0xff00,	/*rm B*/
-	0x00d3, 0xff00,	/*yw B*/
-	0x00d5, 0x0000,	/*GAMMA off*/
-	0x0028, 0x0000,	/*Register Mask*/
-	/*end*/
-	END_SEQ, 0x0000,
-};
-
-static const unsigned short tune_negative_amoled[] = {
+#else
+static const unsigned short tune_negative[] = {
 	/*start Q1 negative*/
 	0x0001, 0x0040,	/*SCR HDTR*/
 	0x002c, 0x0fff,	/*DNR bypass 0x003C*/
@@ -244,17 +245,18 @@ static const unsigned short tune_negative_amoled[] = {
 	/*end*/
 	END_SEQ, 0x0000,
 };
+#endif
 
-struct mdnie_tunning_info tune_negative[CABC_MAX] = {
+struct mdnie_tuning_info negative_table[CABC_MAX] = {
 #if defined(CONFIG_FB_MDNIE_PWM)
-	{"NEGATIVE_CABC_OFF",	tune_negative_lcd_cabc_off},
-	{"NEGATIVE_CABC_ON",	tune_negative_lcd_cabc_on},
+	{"NEGATIVE",		tune_negative},
+	{"NEGATIVE_CABC",	tune_negative_cabc},
 #else
-	{"NEGATIVE_ON",		tune_negative_amoled},
+	{"NEGATIVE",		tune_negative},
 #endif
 };
 
-struct mdnie_tunning_info tune_color_tone[COLOR_TONE_MAX - COLOR_TONE_1] = {
+struct mdnie_tuning_info color_tone_table[COLOR_TONE_MAX - COLOR_TONE_1] = {
 	{"COLOR_TONE_1",	tune_color_tone_1},
 	{"COLOR_TONE_2",	tune_color_tone_2},
 	{"COLOR_TONE_3",	tune_color_tone_3},

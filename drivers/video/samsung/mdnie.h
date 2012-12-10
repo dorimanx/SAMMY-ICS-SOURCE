@@ -68,18 +68,25 @@ enum POWER_LUT {
 	LUT_MAX,
 };
 
+enum POWER_LUT_LEVEL {
+	LUT_LEVEL_MANUAL_AND_INDOOR,
+	LUT_LEVEL_OUTDOOR_1,
+	LUT_LEVEL_OUTDOOR_2,
+	LUT_LEVEL_MAX,
+};
+
 enum NEGATIVE {
 	NEGATIVE_OFF,
 	NEGATIVE_ON,
 	NEGATIVE_MAX,
 };
 
-struct mdnie_tunning_info {
+struct mdnie_tuning_info {
 	char *name;
 	const unsigned short *seq;
 };
 
-struct mdnie_tunning_info_cabc {
+struct mdnie_tuning_info_cabc {
 	char *name;
 	const unsigned short *seq;
 	unsigned int idx_lut;
@@ -91,6 +98,8 @@ struct mdnie_info {
 	struct lcd_platform_data	*lcd_pd;
 	struct backlight_device		*bd;
 	unsigned int			bd_enable;
+	unsigned int			auto_brightness;
+	unsigned int			power_lut_idx;
 #endif
 	struct mutex			lock;
 	struct mutex			dev_lock;
@@ -101,7 +110,7 @@ struct mdnie_info {
 	enum TONE tone;
 	enum OUTDOOR outdoor;
 	enum CABC cabc;
-	unsigned int tunning;
+	unsigned int tuning;
 	unsigned int negative;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend    early_suspend;
@@ -111,11 +120,10 @@ struct mdnie_info {
 extern struct mdnie_info *g_mdnie;
 
 int mdnie_send_sequence(struct mdnie_info *mdnie, const unsigned short *seq);
-extern void set_mdnie_value(struct mdnie_info *mdnie, u8 force);
 #if defined(CONFIG_FB_MDNIE_PWM)
 extern void set_mdnie_pwm_value(struct mdnie_info *mdnie, int value);
 #endif
-extern int mdnie_txtbuf_to_parsing(char const *pFilepath);
+extern int mdnie_txtbuf_to_parsing(char const *pFilepath, u16 *buf, u16 size);
 
 extern void check_lcd_type(void);
 struct mdnie_backlight_value {
