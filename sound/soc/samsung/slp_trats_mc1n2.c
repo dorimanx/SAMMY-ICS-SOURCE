@@ -17,13 +17,129 @@
 #ifdef SND_SOC_MC1N2_PM_RUNTIME
 #include <linux/pm_runtime.h>
 #endif
+#include <linux/input.h>
+
+#include <sound/jack.h>
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
+#include <plat/adc.h>
+#include <plat/gpio-cfg.h>
+#include <mach/gpio.h>
 #include <mach/regs-clock.h>
 #include <mach/pmu.h>
 #include "../codecs/mc1n2/mc1n2.h"
+#include "slp_jack.h"
+
+static struct platform_device *trats_snd_device;
+
+#define SEC_JACK_ADC_CH		3
+
+static struct s3c_adc_client *padc;
+
+static struct slp_jack_zone slp_jack_zones[] = {
+	{
+		/* adc < 50, unstable zone, default to 3pole if it stays
+		* in this range for a half second (20ms delays, 25 samples)
+		*/
+		.adc_high = 0,
+		.delay_ms = 15,
+		.check_count = 20,
+		.jack_type = SND_JACK_HEADPHONE,
+	},
+	{
+		/* 50 < adc <= 490, unstable zone, default to 3pole if it stays
+		* in this range for a second (10ms delays, 100 samples)
+		*/
+		.adc_high = 1200,
+		.delay_ms = 10,
+		.check_count = 80,
+		.jack_type = SND_JACK_HEADPHONE,
+	},
+	{
+		/* 490 < adc <= 900, unstable zone, default to 4pole if it
+		* stays in this range for a second (10ms delays, 100 samples)
+		*/
+		.adc_high = 2600,
+		.delay_ms = 10,
+		.check_count = 10,
+		.jack_type = SND_JACK_HEADSET,
+	},
+	{
+		/* 900 < adc <= 1500, 4 pole zone, default to 4pole if it
+		* stays in this range for 200ms (20ms delays, 10 samples)
+		*/
+		.adc_high = 3800,
+		.delay_ms = 10,
+		.check_count = 15,
+		.jack_type = SND_JACK_HEADSET,
+	},
+	{
+		/* adc > 1500, unstable zone, default to 3pole if it stays
+		* in this range for a second (10ms delays, 100 samples)
+		*/
+		.adc_high = 0x7fffffff,
+		.delay_ms = 10,
+		.check_count = 100,
+		.jack_type = SND_JACK_HEADPHONE,
+	},
+};
+
+/* To support 3-buttons earjack */
+static struct slp_jack_buttons_zone slp_jack_buttons_zones[] = {
+	{
+		/* 0 <= adc <= 93, stable zone */
+		.code           = KEY_MEDIA,
+		.adc_low        = 0,
+		.adc_high       = 105,
+	},
+	{
+		/* 94 <= adc <= 167, stable zone */
+		.code           = KEY_PREVIOUSSONG,
+		.adc_low        = 106,
+		.adc_high       = 167,
+	},
+	{
+		/* 168 <= adc <= 370, stable zone */
+		.code           = KEY_NEXTSONG,
+		.adc_low        = 168,
+		.adc_high       = 370,
+	},
+};
+
+void trats_jack_set_micbias(bool on)
+{
+#ifdef CONFIG_SND_SOC_USE_EXTERNAL_MIC_BIAS
+	gpio_set_value(GPIO_EAR_MIC_BIAS_EN, on);
+#endif /* #ifdef CONFIG_SND_SOC_USE_EXTERNAL_MIC_BIAS */
+};
+
+int trats_jack_get_adc(void)
+{
+	int adc;
+
+	adc = s3c_adc_read(padc, SEC_JACK_ADC_CH);
+
+	return adc;
+};
+
+void trats_jack_init(void)
+{
+	padc = s3c_adc_register(trats_snd_device, NULL, NULL, 0);
+};
+
+struct slp_jack_platform_data trats_jack_pdata = {
+	.set_micbias_state = trats_jack_set_micbias,
+	.get_adc_value = trats_jack_get_adc,
+	.zones = slp_jack_zones,
+	.num_zones = ARRAY_SIZE(slp_jack_zones),
+	.buttons_zones = slp_jack_buttons_zones,
+	.num_buttons_zones = ARRAY_SIZE(slp_jack_buttons_zones),
+	.det_gpio = GPIO_DET_35,
+	.send_end_gpio = GPIO_EAR_SEND_END,
+	.jack_mach_init = trats_jack_init,
+};
 
 static bool xclkout_enabled;
 
@@ -147,9 +263,6 @@ static const struct snd_soc_dapm_widget trats_dapm_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("HPOUTL"),
 	SND_SOC_DAPM_OUTPUT("HPOUTR"),
 
-	SND_SOC_DAPM_OUTPUT("LOUT1L"),
-	SND_SOC_DAPM_OUTPUT("LOUT1R"),
-
 	SND_SOC_DAPM_SPK("SPK", NULL),
 	SND_SOC_DAPM_SPK("RCV", NULL),
 
@@ -177,11 +290,6 @@ static const struct snd_soc_dapm_route trats_dapm_routes[] = {
 	{"HP", NULL, "HPOUTR"},
 	{"HPOUTL", NULL, "HPL MIXER"},
 	{"HPOUTR", NULL, "HPR MIXER"},
-	/* lineout dock */
-	{"LINEOUT", NULL, "LOUT1L"},
-	{"LINEOUT", NULL, "LOUT1R"},
-	{"LOUT1L", NULL, "LINEOUT1L MIXER"},
-	{"LOUT1R", NULL, "LINEOUT1R MIXER"},
 	/* main mic */
 	{"MIC1", NULL, "Main Mic"},
 	/* sub mic */
@@ -192,25 +300,27 @@ static const struct snd_soc_dapm_route trats_dapm_routes[] = {
 	{"LINEIN", NULL, "FM In"},
 };
 
-#ifdef SND_SOC_MC1N2_PM_RUNTIME
 static int trats_get_enable_codec(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
+#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 	int suspended;
 
 	suspended = pm_runtime_suspended(codec->dev);
 	ucontrol->value.integer.value[0] = !suspended;
-
+#endif
 	return 0;
 }
 
 static int trats_set_enable_codec(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
+#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 
 	pm_runtime_get_sync(codec->dev);
+#endif
 
 	return 0;
 }
@@ -218,11 +328,13 @@ static int trats_set_enable_codec(struct snd_kcontrol *kcontrol,
 static int trats_get_disable_codec(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
+#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 	int suspended;
 
 	suspended = pm_runtime_suspended(codec->dev);
 	ucontrol->value.integer.value[0] = !suspended;
+#endif
 
 	return 0;
 }
@@ -230,6 +342,7 @@ static int trats_get_disable_codec(struct snd_kcontrol *kcontrol,
 static int trats_set_disable_codec(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
+#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 
 	if (pm_runtime_suspended(codec->dev)) {
@@ -240,10 +353,11 @@ static int trats_set_disable_codec(struct snd_kcontrol *kcontrol,
 
 	pm_runtime_put(codec->dev);
 
+#endif
 	return 0;
 }
 
-static const struct snd_kcontrol_new trats_controls[] = {
+static const struct snd_kcontrol_new trats_pm_controls[] = {
 	SOC_SINGLE_BOOL_EXT("Enable Codec", 0,
 			trats_get_enable_codec,
 			trats_set_enable_codec),
@@ -254,17 +368,20 @@ static const struct snd_kcontrol_new trats_controls[] = {
 
 static int trats_startup(struct snd_pcm_substream *substream)
 {
+#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 
 	pm_runtime_get_sync(codec->dev);
 	dev_info(codec->dev, "%s: %d\n", __func__,
 				atomic_read(&codec->dev->power.usage_count));
+#endif
 	return 0;
 }
 
 static void trats_shutdown(struct snd_pcm_substream *substream)
 {
+#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 
@@ -276,23 +393,21 @@ static void trats_shutdown(struct snd_pcm_substream *substream)
 	pm_runtime_put(codec->dev);
 	dev_info(codec->dev, "%s: %d\n", __func__,
 				atomic_read(&codec->dev->power.usage_count));
-}
 #endif
+}
 
 static int trats_hifiaudio_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
-#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	int ret;
 
 	/* add codec power control */
-	ret = snd_soc_add_controls(codec, trats_controls,
-					ARRAY_SIZE(trats_controls));
+	ret = snd_soc_add_controls(codec, trats_pm_controls,
+					ARRAY_SIZE(trats_pm_controls));
 	if (ret < 0) {
 		pr_err("%s: add control failed\n", __func__);
 		goto exit;
 	}
-#endif
 
 	snd_soc_dapm_new_controls(&codec->dapm, trats_dapm_widgets,
 						ARRAY_SIZE(trats_dapm_widgets));
@@ -302,9 +417,10 @@ static int trats_hifiaudio_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_sync(&codec->dapm);
 
-#ifdef SND_SOC_MC1N2_PM_RUNTIME
+	slp_jack_init(codec->card->snd_card, "Headset Jack",
+			SND_JACK_HEADSET | SND_JACK_AVOUT, &trats_jack_pdata);
+
 exit:
-#endif
 	return 0;
 }
 
@@ -312,26 +428,20 @@ exit:
  * U1 MC1N2 DAI operations.
  */
 static struct snd_soc_ops trats_hifi_ops = {
-#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	.startup = trats_startup,
 	.shutdown = trats_shutdown,
-#endif
 	.hw_params = trats_hifi_hw_params,
 };
 
 static struct snd_soc_ops trats_voice_ops = {
-#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	.startup = trats_startup,
 	.shutdown = trats_shutdown,
-#endif
 	.hw_params = trats_voice_hw_params,
 };
 
 static struct snd_soc_ops trats_bt_voice_ops = {
-#ifdef SND_SOC_MC1N2_PM_RUNTIME
 	.startup = trats_startup,
 	.shutdown = trats_shutdown,
-#endif
 	.hw_params = trats_bt_voice_hw_params,
 };
 
@@ -437,8 +547,6 @@ static struct snd_soc_card trats_snd_card = {
 
 	.suspend_post = trats_card_suspend,
 };
-
-static struct platform_device *trats_snd_device;
 
 static int __init trats_audio_init(void)
 {
