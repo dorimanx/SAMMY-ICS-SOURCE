@@ -13,9 +13,8 @@
 
 #include <linux/ioctl.h>
 
-static char sgl_dev_name[] = "slp_global_lock";
-
-#define SGL_IOC_BASE				0x32
+#define SGL_IOC_BASE	0x32
+#define SGL_MAJOR	224
 
 struct sgl_attribute {
 	unsigned int key;
@@ -36,6 +35,7 @@ typedef enum {
 	_SGL_UNLOCK_LOCK,
 	_SGL_SET_DATA,
 	_SGL_GET_DATA,
+	_SGL_DUMP_LOCKS,
 } _sgl_ioctls;
 
 #define SGL_IOC_INIT_LOCK			_IOW(SGL_IOC_BASE, _SGL_INIT_LOCK, struct sgl_attribute *)
@@ -44,5 +44,6 @@ typedef enum {
 #define SGL_IOC_UNLOCK_LOCK			_IOW(SGL_IOC_BASE, _SGL_UNLOCK_LOCK, unsigned int)
 #define SGL_IOC_SET_DATA			_IOW(SGL_IOC_BASE, _SGL_SET_DATA, struct sgl_user_data *)
 #define SGL_IOC_GET_DATA			_IOW(SGL_IOC_BASE, _SGL_GET_DATA, struct sgl_user_data *)
+#define SGL_IOC_DUMP_LOCKS			_IOW(SGL_IOC_BASE, _SGL_DUMP_LOCKS, void *)
 
 #endif /* __SLP_GLOBAL_LOCK_H__ */

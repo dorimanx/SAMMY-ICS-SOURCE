@@ -29,7 +29,8 @@
 #include "mali_osk_profiling.h"
 #endif
 
-#define SGL_WARN(x, y...)	printk(KERN_INFO "[SGL_WARN(%d,%d)](%s):%d " x " \n" , current->tgid, current->pid, __FUNCTION__, __LINE__, ##y);
+#define SGL_WARN(x, y...)	printk(KERN_INFO "[SGL_WARN(%d,%d)](%s):%d " x " \n" , current->tgid, current->pid, __FUNCTION__, __LINE__, ##y)
+#define SGL_INFO(x, y...)	printk(KERN_INFO "[SGL_INFO] " x , ##y)
 
 #if 0 /* LOG */
 
@@ -53,7 +54,6 @@ static struct sgl_global {
 } sgl_global;
 
 struct sgl_session_data {
-
 	void				*inited_locks;	/* per session initialized locks */
 	void				*locked_locks;	/* per session locked locks */
 };
@@ -71,6 +71,9 @@ struct sgl_lock {
 	struct mutex		data_mutex;
 	unsigned int		user_data1;
 	unsigned int		user_data2;
+
+	pid_t			owner_pid;
+	pid_t			owner_tid;
 };
 
 /**************** hash code start ***************/
@@ -87,6 +90,8 @@ struct sgl_hash_node {
 	struct sgl_lock		*lock;			/* lock object */
 	struct hlist_node	node;			/* hash node */
 };
+
+static const char sgl_dev_name[] = "slp_global_lock";
 
 /* find the sgl_lock object with key in the hash table */
 static struct sgl_hash_node *sgl_hash_get_node(struct sgl_hash_head *hash, unsigned int key)
@@ -259,11 +264,11 @@ static int sgl_insert_lock(void *locks, struct sgl_lock *lock)
 	return 0;
 }
 
-static int sgl_remove_lock(void *locks, struct sgl_lock *lock)
+static int sgl_remove_lock(void *locks, unsigned int key)
 {
 	int err;
 
-	err = sgl_hash_remove_node((struct sgl_hash_head *)locks, lock->key);
+	err = sgl_hash_remove_node((struct sgl_hash_head *)locks, key);
 
 	return err;
 }
@@ -297,18 +302,35 @@ static int sgl_lock_lock(struct sgl_session_data *session_data, unsigned int key
 	struct list_head waiting_entry;
 
 	unsigned long jiffies;
-	int wait_count = 0;
 	long ret = 0;
 
 	SGL_LOG("key: %d", key);
 
-	lock = sgl_get_lock(session_data->inited_locks, key);
+	mutex_lock(&sgl_global.mutex);
+	lock = sgl_get_lock(sgl_global.locks, key);
 	if (lock == NULL) {
-		SGL_WARN("lock is not in the inited locks");
+		if (sgl_get_lock(session_data->inited_locks, key))
+			sgl_remove_lock(session_data->inited_locks, key);
+
+		if (sgl_get_lock(session_data->locked_locks, key))
+			sgl_remove_lock(session_data->locked_locks, key);
+		mutex_unlock(&sgl_global.mutex);
+		SGL_WARN("lock is not in the global locks");
 		return -ENOENT;
 	}
 
+	lock = sgl_get_lock(session_data->inited_locks, key);
+	if (lock == NULL) {
+		mutex_unlock(&sgl_global.mutex);
+		SGL_WARN("lock is not in the inited locks");
+		return -ENOENT;
+	}
+	mutex_unlock(&sgl_global.mutex);
+
 	INIT_LIST_HEAD(&waiting_entry);
+	mutex_lock(&lock->data_mutex);
+	lock->refcnt++;
+	mutex_unlock(&lock->data_mutex);
 	mutex_lock(&lock->waiting_list_mutex);
 	list_add_tail(&waiting_entry, &lock->waiting_list);
 	mutex_unlock(&lock->waiting_list_mutex);
@@ -322,36 +344,32 @@ static int sgl_lock_lock(struct sgl_session_data *session_data, unsigned int key
                                _mali_osk_get_pid(), _mali_osk_get_tid(), key, 0, 0);
 #endif
 
-	while (1) {
-		SGL_LOG();
+	SGL_LOG();
 
-		ret = wait_event_interruptible_timeout(lock->waiting_queue, ((lock->locked == 0) && lock->waiting_list.next == &waiting_entry), jiffies);
-		if (ret == 0) {
-			SGL_WARN("timed out");
-		} else if (ret == -ERESTARTSYS) {
-			SGL_WARN("interrupted by signal");
-		} else {
-			SGL_LOG();
-			break;
-		}
-
-		if (wait_count++ >= 60) {
-			mutex_lock(&lock->waiting_list_mutex);
-			list_del(&waiting_entry);
-			mutex_unlock(&lock->waiting_list_mutex);
-			return -ETIMEDOUT;
-		}
-
-		SGL_LOG();
+	ret = wait_event_timeout(lock->waiting_queue,
+			((lock->locked == 0)
+			&& lock->waiting_list.next == &waiting_entry),
+			jiffies);
+	if (ret == 0) {
+		SGL_WARN("timed out, key: %d, owner(%d, %d)",
+				key, lock->owner_pid, lock->owner_tid);
+		mutex_lock(&lock->data_mutex);
+		lock->refcnt--;
+		mutex_unlock(&lock->data_mutex);
+		mutex_lock(&lock->waiting_list_mutex);
+		list_del(&waiting_entry);
+		mutex_unlock(&lock->waiting_list_mutex);
+		return -ETIMEDOUT;
 	}
 
 	SGL_LOG();
 
-	lock->owner = (unsigned int)session_data;
 	mutex_lock(&lock->data_mutex);
+	lock->owner = (unsigned int)session_data;
 	lock->locked = 1;
+	lock->owner_pid = current->tgid;
+	lock->owner_tid = current->pid;
 	mutex_unlock(&lock->data_mutex);
-	lock->refcnt++;
 
 	mutex_lock(&lock->waiting_list_mutex);
 	list_del(&waiting_entry);
@@ -380,21 +398,24 @@ static int _sgl_unlock_lock(struct sgl_lock *lock)
 		SGL_WARN("lock == NULL");
 		return -EBADRQC;
 	}
+	mutex_lock(&lock->data_mutex);
 
 	if (lock->locked == 0) {
+		mutex_unlock(&lock->data_mutex);
 		SGL_WARN("tried to unlock not-locked lock");
 		return -EBADRQC;
 	}
 
 	lock->owner = 0;
-	mutex_lock(&lock->data_mutex);
 	lock->locked = 0;
-	mutex_unlock(&lock->data_mutex);
+	lock->owner_pid = 0;
+	lock->owner_tid = 0;
 	lock->refcnt--;
 
 	if (waitqueue_active(&lock->waiting_queue)) {
 		wake_up(&lock->waiting_queue);
 	}
+	mutex_unlock(&lock->data_mutex);
 
 	SGL_LOG();
 
@@ -409,17 +430,35 @@ static int sgl_unlock_lock(struct sgl_session_data *session_data, unsigned int k
 
 	SGL_LOG("key: %d", key);
 
-	lock = sgl_get_lock(session_data->inited_locks, key);
+	mutex_lock(&sgl_global.mutex);
+	lock = sgl_get_lock(sgl_global.locks, key);
 	if (lock == NULL) {
-		SGL_WARN("lock is not in the inited locks");
+		if (sgl_get_lock(session_data->inited_locks, key))
+			sgl_remove_lock(session_data->inited_locks, key);
+
+		if (sgl_get_lock(session_data->locked_locks, key))
+			sgl_remove_lock(session_data->locked_locks, key);
+		mutex_unlock(&sgl_global.mutex);
+		SGL_WARN("lock is not in the global locks");
 		return -ENOENT;
 	}
 
+	lock = sgl_get_lock(session_data->inited_locks, key);
+	if (lock == NULL) {
+		mutex_unlock(&sgl_global.mutex);
+		SGL_WARN("lock is not in the inited locks");
+		return -ENOENT;
+	}
+	mutex_unlock(&sgl_global.mutex);
+
+	mutex_lock(&lock->data_mutex);
 	if (lock->owner != (unsigned int)session_data) {
+		mutex_unlock(&lock->data_mutex);
 		SGL_WARN("tried to unlock the lock not-owned by calling session");
 		return -EBADRQC;
 	}
-
+	mutex_unlock(&lock->data_mutex);
+	sgl_remove_lock(session_data->locked_locks, key);
 	err = _sgl_unlock_lock(lock);
 	if (err < 0)
 		SGL_WARN("_sgl_unlock_lock() failed");
@@ -432,7 +471,6 @@ static int sgl_unlock_lock(struct sgl_session_data *session_data, unsigned int k
 #endif
 
 
-	err = sgl_remove_lock(session_data->locked_locks, lock);
 	if (err < 0)
 		SGL_WARN("sgl_remove_lock() failed");
 
@@ -450,14 +488,6 @@ static int sgl_init_lock(struct sgl_session_data *session_data, struct sgl_attri
 	SGL_LOG("key: %d", attr->key);
 
 	mutex_lock(&sgl_global.mutex);
-
-	/* check the inited locks */
-	lock = sgl_get_lock(session_data->inited_locks, attr->key);
-	if (lock) {
-		lock->refcnt++;
-		SGL_WARN("lock is already in the inited locks");
-		goto out_unlock;
-	}
 
 	lock = sgl_get_lock(sgl_global.locks, attr->key);
 	if (lock == NULL) {
@@ -482,8 +512,9 @@ static int sgl_init_lock(struct sgl_session_data *session_data, struct sgl_attri
 		mutex_init(&lock->waiting_list_mutex);
 		mutex_init(&lock->data_mutex);
 	}
-
+	mutex_lock(&lock->data_mutex);
 	lock->refcnt++;
+	mutex_unlock(&lock->data_mutex);
 
 	/* add to the inited locks */
 	err = sgl_insert_lock(session_data->inited_locks, lock);
@@ -508,14 +539,17 @@ static int _sgl_destroy_lock(struct sgl_lock *lock)
 		return -EBADRQC;
 	}
 
+	mutex_lock(&lock->data_mutex);
 	lock->refcnt--;
 	if (lock->refcnt == 0) {
-		err = sgl_remove_lock(sgl_global.locks, lock);
+		mutex_unlock(&lock->data_mutex);
+		err = sgl_remove_lock(sgl_global.locks, lock->key);
 		if (err < 0)
 			return err;
 
 		kfree(lock);
-	}
+	} else
+		mutex_unlock(&lock->data_mutex);
 
 	SGL_LOG();
 
@@ -538,6 +572,11 @@ static int sgl_destroy_lock(struct sgl_session_data *session_data, unsigned int 
 		err = -ENOENT;
 		goto out_unlock;
 	}
+	if (!sgl_get_lock(session_data->inited_locks, key)) {
+		SGL_WARN("lock is not in the inited locks");
+		err = -ENOENT;
+		goto out_unlock;
+	}
 
 	/* check if lock is still locked */
 	if (sgl_get_lock(session_data->locked_locks, key)) {
@@ -546,12 +585,12 @@ static int sgl_destroy_lock(struct sgl_session_data *session_data, unsigned int 
 		goto out_unlock;
 	}
 
-	/* remove from the inited lock */
-	err = sgl_remove_lock(session_data->inited_locks, lock);
+	err = _sgl_destroy_lock(lock);
 	if (err < 0)
 		goto out_unlock;
 
-	err = _sgl_destroy_lock(lock);
+	/* remove from the inited lock */
+	err = sgl_remove_lock(session_data->inited_locks, key);
 	if (err < 0)
 		goto out_unlock;
 
@@ -619,6 +658,35 @@ static int sgl_get_data(struct sgl_session_data *session_data, struct sgl_user_d
 	return ret;
 }
 
+static void sgl_dump_locks(void)
+{
+	int i;
+	SGL_INFO("SLP_GLOBAL_LOCK DUMP START\n");
+	mutex_lock(&sgl_global.mutex);
+	for (i = 0; i < SGL_HASH_ENTRIES; i++) {
+		struct sgl_hash_head *shead;
+		struct sgl_hash_node *snode;
+		struct hlist_head *hhead;
+		struct hlist_node *pos;
+
+		shead = &((struct sgl_hash_head *)sgl_global.locks)[i];
+		if (!shead)
+			continue;
+		mutex_lock(&shead->mutex);
+		hhead = &shead->head;
+		hlist_for_each_entry(snode, pos, hhead, node) {
+			struct sgl_lock *lock = snode->lock;
+			mutex_lock(&lock->data_mutex);
+			SGL_INFO("lock key: %d, refcnt: %d, owner_pid: %d, owner_tid: %d\n",
+					lock->key, lock->refcnt, lock->owner_pid, lock->owner_tid);
+			mutex_unlock(&lock->data_mutex);
+		}
+		mutex_unlock(&shead->mutex);
+	}
+	mutex_unlock(&sgl_global.mutex);
+	SGL_INFO("SLP_GLOBAL_LOCK DUMP END\n");
+}
+
 #ifdef HAVE_UNLOCKED_IOCTL
 static long sgl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 #else
@@ -653,6 +721,9 @@ static int sgl_ioctl(struct inode *inode, struct file *file, unsigned int cmd, u
 		break;
 	case SGL_IOC_GET_DATA:
 		err = sgl_get_data(session_data, (struct sgl_user_data *)arg);
+		break;
+	case SGL_IOC_DUMP_LOCKS:
+		sgl_dump_locks();
 		break;
 	default:
 			SGL_WARN("unknown type of ioctl command");
@@ -744,7 +815,7 @@ static int sgl_release(struct inode *inode, struct file *file)
     return err;
 }
 
-static struct file_operations sgl_ops = {
+static const struct file_operations sgl_ops = {
 	.owner = THIS_MODULE,
     .open = sgl_open,
     .release = sgl_release,
@@ -755,7 +826,7 @@ static struct file_operations sgl_ops = {
 #endif
 };
 
-int sgl_init(void)
+static int __init sgl_init(void)
 {
 	int err = 0;
 
@@ -763,11 +834,10 @@ int sgl_init(void)
 
 	memset(&sgl_global, 0, sizeof(struct sgl_global));
 
-    sgl_global.major = register_chrdev(UNNAMED_MAJOR, sgl_dev_name, &sgl_ops);
-	if (sgl_global.major < 0) {
-		err = sgl_global.major;
+	sgl_global.major = SGL_MAJOR;
+	err = register_chrdev(sgl_global.major, sgl_dev_name, &sgl_ops);
+	if (err < 0)
 		goto err_register_chrdev;
-	}
 
     sgl_global.class = class_create(THIS_MODULE, sgl_dev_name);
 	if (IS_ERR(sgl_global.class)) {
