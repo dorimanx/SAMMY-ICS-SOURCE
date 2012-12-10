@@ -33,6 +33,9 @@
 #include <linux/leds-max77693.h>
 #endif
 
+#ifdef CONFIG_BACKLIGHT_LP855X
+#include <linux/platform_data/lp855x.h>
+#endif
 #ifdef CONFIG_BATTERY_MAX17042_FUELGAUGE_PX
 #include <linux/power/max17042_fuelgauge_px.h>
 #endif
@@ -121,7 +124,8 @@ struct s3cfb_extdsp_lcd {
 
 #include <mach/sec_debug.h>
 
-#include <mach/p4-input.h>
+#include <mach/kona-input.h>
+#include <mach/midas-wacom.h>
 
 #include <mach/midas-power.h>
 #ifdef CONFIG_SEC_THERMISTOR
@@ -153,8 +157,8 @@ struct s3cfb_extdsp_lcd {
 #include <linux/30pin_con.h>
 #endif
 
-#ifdef CONFIG_MOTOR_DRV_ISA1200
-#include <linux/isa1200_vibrator.h>
+#ifdef CONFIG_MOTOR_DRV_DRV2603
+#include <linux/drv2603_vibrator.h>
 #endif
 
 #include "board-mobile.h"
@@ -847,12 +851,6 @@ static int sec_bat_get_input_current(void)
 
 }
 
-static void sec_bat_set_aicl_state(int state)
-{
-	if (smb_callbacks && smb_callbacks->set_aicl_state)
-		smb_callbacks->set_aicl_state(state);
-}
-
 #endif
 
 static int check_bootmode(void)
@@ -1105,55 +1103,57 @@ static struct i2c_board_info i2c_devs22_emul[] __initdata = {
 };
 #endif
 
-#ifdef CONFIG_I2C_GPIO
-#ifdef CONFIG_MOTOR_DRV_ISA1200
-static void isa1200_init(void)
-{
-	int gpio;
-	gpio = GPIO_MOTOR_EN;
-	gpio_request(gpio, "MOTOR_EN");
-	gpio_direction_output(gpio, 1);
-	gpio_export(gpio, 0);
-}
-static int isa1200_vdd_en(bool en)
-{
-	return gpio_direction_output(GPIO_MOTOR_EN, en);
-}
-
-static struct i2c_gpio_platform_data gpio_i2c_data17 = {
-	.sda_pin = GPIO_MOTOR_SDA,
-	.scl_pin = GPIO_MOTOR_SCL,
+#ifdef CONFIG_FB_S5P_NT71391
+static struct i2c_gpio_platform_data gpio_i2c_data23 = {
+	.scl_pin = GPIO_LCD_FREQ_SCL,
+	.sda_pin = GPIO_LCD_FREQ_SDA,
 };
 
-struct platform_device s3c_device_i2c17 = {
+struct platform_device s3c_device_i2c23 = {
 	.name = "i2c-gpio",
-	.id = 17,
-	.dev.platform_data = &gpio_i2c_data17,
+	.id = 23,
+	.dev.platform_data = &gpio_i2c_data23,
+};
+#endif
+
+#ifdef CONFIG_BACKLIGHT_LP855X
+static struct i2c_gpio_platform_data gpio_i2c_data24 = {
+	.scl_pin = GPIO_LED_BACKLIGHT_SCL,
+	.sda_pin = GPIO_LED_BACKLIGHT_SDA,
 };
 
-static struct isa1200_vibrator_platform_data isa1200_vibrator_pdata = {
-	.gpio_en = isa1200_vdd_en,
-	.max_timeout = 10000,
-	.ctrl0 = CTL0_DIVIDER128 | CTL0_PWM_INPUT,
-	.ctrl1 = CTL1_DEFAULT,
-	.ctrl2 = 0,
-	.ctrl4 = 0,
-	. pll = 0x23,
-	.duty = 0x71,
-	.period = 0x74,
-	.get_clk = NULL,
-	.pwm_id = 0,
-	.pwm_duty = 37000,
-	.pwm_period = 38675,
+struct platform_device s3c_device_i2c24 = {
+	.name = "i2c-gpio",
+	.id = 24,
+	.dev.platform_data = &gpio_i2c_data24,
 };
-static struct i2c_board_info i2c_devs17_emul[] = {
+
+static int lp8556_bl_set_power(int on)
+{
+	pr_info("lp8556_bl : power : %d\n", on);
+
+	if (on)
+		gpio_set_value(GPIO_LED_BACKLIGHT_RESET, GPIO_LEVEL_HIGH);
+	else
+		gpio_set_value(GPIO_LED_BACKLIGHT_RESET, GPIO_LEVEL_LOW);
+
+	return 0;
+}
+
+static struct lp855x_pdata lp8856_bl_pdata = {
+	.ps_mode	= PS_MODE_4_4,
+	.brt_mode	= BRT_MODE_PWM,
+	.set_power	= lp8556_bl_set_power,
+};
+
+static struct i2c_board_info i2c_devs24_emul[] __initdata = {
 	{
-		I2C_BOARD_INFO("isa1200_vibrator",  0x48),
-		.platform_data = &isa1200_vibrator_pdata,
+		I2C_BOARD_INFO("lp8556", (0x58 >> 1)),
+		.platform_data	= &lp8856_bl_pdata,
 	},
 };
-#endif	/* CONFIG_MOTOR_DRV_ISA1200 */
 #endif
+
 
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
 static struct resource ram_console_resource[] = {
@@ -1297,10 +1297,6 @@ static void  sec_charger_cb(int set_cable_type, int cable_sub_type)
 	synaptics_ts_charger_infom(is_cable_attached);
 #endif
 
-#if defined(CONFIG_TOUCHSCREEN_ATMEL_MXT1664S)
-	ts_charger_infom(is_cable_attached);
-#endif
-
 /* Send charger state to px-switch. px-switch needs cable type what USB or not */
 	set_usb_connection_state(!is_usb_lpm_enter);
 
@@ -1337,32 +1333,31 @@ static struct sec_battery_platform_data sec_battery_platform = {
 	.get_charger_is_full = sec_bat_get_charger_is_full,
 	.get_aicl_current = sec_bat_get_aicl_current,
 	.get_input_current = sec_bat_get_input_current,
-	.set_aicl_state = sec_bat_set_aicl_state,
 #endif
 	.init_charger_gpio = sec_bat_gpio_init,
 	.inform_charger_connection = sec_charger_cb,
 
 #if defined(CONFIG_TARGET_LOCALE_USA)
 #if defined(CONFIG_MACH_P4NOTELTE_USA_SPR)
-	.temp_event_threshold = 62000,		/* 62c */
-	.temp_high_threshold = 48000,		/* 48c */
-	.temp_high_recovery = 43200,		/* 43.2c */
+	.temp_event_threshold = 70000,		/* 62c */
+	.temp_high_threshold = 48000,		/* 45c */
+	.temp_high_recovery = 43200,		/* 42c */
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 48000,	/* 48c */
-	.temp_lpm_high_recovery = 43500,	/* 43.5c */
-	.temp_lpm_low_recovery = -2000,	/* -2c */
-	.temp_lpm_low_threshold = -3500,	/* -3.5c */
+	.temp_lpm_high_threshold = 48000,	/* 45c */
+	.temp_lpm_high_recovery = 43500,	/* 42c */
+	.temp_lpm_low_recovery = 0,		/* 0c */
+	.temp_lpm_low_threshold = -3700,	/* -5c */
 #elif defined(CONFIG_MACH_P4NOTELTE_USA_VZW)
 	.temp_event_threshold = 62000,		/* 62c */
-	.temp_high_threshold = 47000,		/* 45c */
-	.temp_high_recovery = 44000,		/* 42c */
+	.temp_high_threshold = 45000,		/* 45c */
+	.temp_high_recovery = 42000,		/* 42c */
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 48000,	/* 48c */
-	.temp_lpm_high_recovery = 44000,	/* 44c */
+	.temp_lpm_high_threshold = 45000,	/* 45c */
+	.temp_lpm_high_recovery = 42000,	/* 42c */
 	.temp_lpm_low_recovery = 0,		/* 0c */
 	.temp_lpm_low_threshold = -5000,	/* -5c */
 #else
@@ -1372,8 +1367,8 @@ static struct sec_battery_platform_data sec_battery_platform = {
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 45000,	/* 62c */
-	.temp_lpm_high_recovery = 42000,	/* 42c */
+	.temp_lpm_high_threshold = 61000,	/* 62c */
+	.temp_lpm_high_recovery = 43000,	/* 42c */
 	.temp_lpm_low_recovery = 0,		/* 0c */
 	.temp_lpm_low_threshold = -5000,	/* -5c */
 #endif
@@ -1399,9 +1394,8 @@ static struct sec_battery_platform_data sec_battery_platform = {
 #endif
 	.recharge_voltage = 4150,	/*4.15V */
 
-	.charge_duration = 10 * 60 * 60,	/* 10 hour */
-	.recharge_duration = 1.5 * 60 * 60,	/* 1.5 hour */
-
+	.charge_duration = 10*60*60,	/* 10 hour */
+	.recharge_duration = 1.5*60*60,	/* 1.5 hour */
 	.check_lp_charging_boot = check_bootmode,
 	.check_jig_status = check_jig_on
 };
@@ -1611,6 +1605,36 @@ static struct platform_device sec_keyboard = {
 	.id	= -1,
 	.dev = {
 		.platform_data = &kbd_pdata,
+	}
+};
+#endif
+
+#ifdef CONFIG_MOTOR_DRV_DRV2603
+static void drv2603_motor_init(void)
+{
+	gpio_request(GPIO_MOTOR_EN, "TSP_LDO_ON");
+	gpio_direction_output(GPIO_MOTOR_EN, 0);
+	gpio_export(GPIO_MOTOR_EN, 0);
+}
+
+static int drv2603_motor_en(bool en)
+{
+	return gpio_direction_output(GPIO_MOTOR_EN, en);
+}
+
+static struct drv2603_vibrator_platform_data motor_pdata = {
+	.gpio_en = drv2603_motor_en,
+	.max_timeout = 10000,
+	.pwm_id = 0,
+	.pwm_duty = 38000,
+	.pwm_period = 38100,
+};
+
+static struct platform_device sec_motor = {
+	.name	= "drv2603_vibrator",
+	.id	= -1,
+	.dev = {
+		.platform_data = &motor_pdata,
 	}
 };
 #endif
@@ -1973,16 +1997,20 @@ static struct platform_device *midas_devices[] __initdata = {
 	&s3c_device_i2c16,
 #endif
 
-#ifdef CONFIG_MOTOR_DRV_ISA1200
-	&s3c_device_i2c17,
-#endif
-
 #ifdef CONFIG_LEDS_AN30259A
 	&s3c_device_i2c21,
 #endif
 
 #ifdef CONFIG_IR_REMOCON_MC96
 	&s3c_device_i2c22,
+#endif
+
+#ifdef CONFIG_FB_S5P_NT71391
+	&s3c_device_i2c23,
+#endif
+
+#ifdef CONFIG_BACKLIGHT_LP855X
+	&s3c_device_i2c24,
 #endif
 
 #if defined CONFIG_USB_EHCI_S5P && !defined CONFIG_LINK_DEVICE_HSIC
@@ -2037,9 +2065,6 @@ static struct platform_device *midas_devices[] __initdata = {
 #endif
 #ifdef CONFIG_FB_S5P_LD9040
 	&ld9040_spi_gpio,
-#endif
-#ifdef CONFIG_FB_S5P_S6C1372
-	&lcd_s6c1372,
 #endif
 #ifdef CONFIG_VIDEO_TVOUT
 	&s5p_device_tvout,
@@ -2135,6 +2160,9 @@ static struct platform_device *midas_devices[] __initdata = {
 	&sec_device_connector,
 #ifdef CONFIG_SEC_KEYBOARD_DOCK
 	&sec_keyboard,
+#endif
+#ifdef CONFIG_MOTOR_DRV_DRV2603
+	&sec_motor,
 #endif
 #endif
 #if defined(CONFIG_IR_REMOCON_GPIO)
@@ -2557,11 +2585,12 @@ static void __init midas_machine_init(void)
 	s3c_i2c1_set_platdata(NULL);
 	i2c_register_board_info(1, i2c_devs1, ARRAY_SIZE(i2c_devs1));
 
-	p4_tsp_init(system_rev);
-	p4_key_init();
-#if defined(CONFIG_EPEN_WACOM_G5SP)
-	p4_wacom_init();
-#endif	/* CONFIG_EPEN_WACOM_G5SP */
+	kona_tsp_init(system_rev);
+	kona_key_init();
+
+#ifdef CONFIG_MOTOR_DRV_DRV2603
+	drv2603_motor_init();
+#endif
 
 #ifdef CONFIG_LEDS_AAT1290A
 	platform_device_register(&s3c_device_aat1290a_led);
@@ -2574,6 +2603,13 @@ static void __init midas_machine_init(void)
 		i2c_register_board_info(5, i2c_devs5,
 			ARRAY_SIZE(i2c_devs5));
 	}
+#endif
+
+#ifdef CONFIG_S3C_DEV_I2C6
+	s3c_i2c6_set_platdata(NULL);
+#endif
+#if defined(CONFIG_INPUT_WACOM)
+	midas_wacom_init();
 #endif
 
 	s3c_i2c7_set_platdata(NULL);
@@ -2607,12 +2643,6 @@ static void __init midas_machine_init(void)
 				ARRAY_SIZE(i2c_devs16_emul));
 #endif
 
-#ifdef CONFIG_MOTOR_DRV_ISA1200
-	isa1200_init();
-	i2c_register_board_info(17, i2c_devs17_emul,
-				ARRAY_SIZE(i2c_devs17_emul));
-#endif
-
 #if defined(CONFIG_STMPE811_ADC) || defined(CONFIG_FM_SI4709_MODULE) \
 	|| defined(CONFIG_FM_SI4705_MODULE)
 	i2c_register_board_info(19, i2c_devs19_emul,
@@ -2629,6 +2659,11 @@ static void __init midas_machine_init(void)
 				ARRAY_SIZE(i2c_devs22_emul));
 #endif
 
+#ifdef CONFIG_BACKLIGHT_LP855X
+	i2c_register_board_info(24, i2c_devs24_emul,
+				ARRAY_SIZE(i2c_devs24_emul));
+#endif
+
 #if defined(GPIO_OLED_DET)
 	gpio_request(GPIO_OLED_DET, "OLED_DET");
 	s5p_register_gpio_interrupt(GPIO_OLED_DET);
@@ -2639,7 +2674,9 @@ static void __init midas_machine_init(void)
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 	s3cfb_set_platdata(&lms501kf03_data);
 #endif
-#if defined(CONFIG_BACKLIGHT_PWM)
+#if defined(CONFIG_FB_S5P_MIPI_DSIM)
+	mipi_fb_init();
+#elif defined(CONFIG_BACKLIGHT_PWM)
 	samsung_bl_set(&smdk4212_bl_gpio_info, &smdk4212_bl_data);
 #elif defined(CONFIG_FB_S5P_S6C1372)
 	s6c1372_panel_gpio_init();

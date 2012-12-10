@@ -2909,6 +2909,8 @@ static void __init p10_machine_init(void)
 	s5p_device_mipi_csis0.dev.parent = &exynos5_device_pd[PD_GSCL].dev;
 	s5p_device_mipi_csis1.dev.parent = &exynos5_device_pd[PD_GSCL].dev;
 #endif
+	s5p_mipi_csis0_default_data.clk_rate = fimc_clk_rate();
+	s5p_mipi_csis1_default_data.clk_rate = fimc_clk_rate();
 	s3c_set_platdata(&s5p_mipi_csis0_default_data,
 			sizeof(s5p_mipi_csis0_default_data), &s5p_device_mipi_csis0);
 	s3c_set_platdata(&s5p_mipi_csis1_default_data,

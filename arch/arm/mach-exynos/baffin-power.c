@@ -24,14 +24,12 @@
 #include <plat/gpio-cfg.h>
 #include <mach/gpio-midas.h>
 #include <mach/irqs.h>
-
+#if defined(CONFIG_MACH_SLP_PQ)
+#include <asm/mach-types.h>
+#endif
 #include <linux/mfd/max8997.h>
 #include <linux/mfd/max77686.h>
 #include <linux/mfd/max77693.h>
-
-#ifdef CONFIG_REGULATOR_LP8720
-#include <linux/regulator/lp8720.h>
-#endif
 
 #if defined(CONFIG_REGULATOR_S5M8767)
 #include <linux/mfd/s5m87xx/s5m-pmic.h>
@@ -285,6 +283,9 @@ static struct regulator_consumer_supply ldo3_supply[] = {
 	REGULATOR_SUPPLY("DBVDD1", NULL),
 	REGULATOR_SUPPLY("DBVDD2", NULL),
 	REGULATOR_SUPPLY("DBVDD3", NULL),
+#ifdef CONFIG_MACH_REDWOOD
+	REGULATOR_SUPPLY("VDDI", "s6d6aa1"),
+#endif
 };
 #else
 static struct regulator_consumer_supply ldo3_supply[] = {};
@@ -292,7 +293,7 @@ static struct regulator_consumer_supply ldo3_supply[] = {};
 
 static struct regulator_consumer_supply ldo5_supply[] = {
 	REGULATOR_SUPPLY("vcc_1.8v", NULL),
-	REGULATOR_SUPPLY("TOUCH_PULL_UP", NULL),
+	REGULATOR_SUPPLY("touchkey", NULL),
 };
 
 static struct regulator_consumer_supply ldo8_supply[] = {
@@ -302,11 +303,9 @@ static struct regulator_consumer_supply ldo8_supply[] = {
 	REGULATOR_SUPPLY("vdd_pll", "exynos4-hdmi"),
 };
 
-#if !defined(CONFIG_MACH_GRANDE)
 static struct regulator_consumer_supply ldo9_supply[] = {
 	REGULATOR_SUPPLY("cam_isp_mipi_1.2v", NULL),
 };
-#endif
 
 static struct regulator_consumer_supply ldo10_supply[] = {
 	REGULATOR_SUPPLY("vmipi_1.8v", NULL),
@@ -322,52 +321,51 @@ static struct regulator_consumer_supply ldo12_supply[] = {
 	REGULATOR_SUPPLY("votg_3.0v", NULL),
 };
 
-#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1) || \
-	defined(CONFIG_MACH_M0_GRANDECTC)
 static struct regulator_consumer_supply ldo13_supply[] = {
-	REGULATOR_SUPPLY("vusbhub_osc_1.8v", NULL),
+	REGULATOR_SUPPLY("tdmb_1.8v", NULL),
 };
-#endif
 
 static struct regulator_consumer_supply ldo14_supply[] = {
 	REGULATOR_SUPPLY("vabb2_1.95v", NULL),
 };
 
-#if !defined(CONFIG_MACH_GRANDE)
 static struct regulator_consumer_supply ldo17_supply[] = {
 	REGULATOR_SUPPLY("cam_sensor_core_1.2v", NULL),
+#if defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
+	REGULATOR_SUPPLY("vtouch_1.8v", NULL),
+#endif
 };
 
 static struct regulator_consumer_supply ldo18_supply[] = {
 	REGULATOR_SUPPLY("cam_isp_sensor_1.8v", NULL),
 };
 
+static struct regulator_consumer_supply ldo19_supply[] = {
+	REGULATOR_SUPPLY("vt_cam_1.8v", NULL),
+};
+
 static struct regulator_consumer_supply ldo21_supply[] = {
 	REGULATOR_SUPPLY("vtf_2.8v", NULL),
 };
-#endif
 
 static struct regulator_consumer_supply ldo23_supply[] = {
-	REGULATOR_SUPPLY("VREG_KEY", NULL),
+	REGULATOR_SUPPLY("touch", NULL),
 };
 
-#if defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_M3) ||	\
-	defined(CONFIG_MACH_M0) || \
-	defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_T0) \
-	|| defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
 static struct regulator_consumer_supply ldo24_supply[] = {
 	REGULATOR_SUPPLY("touch_1.8v", NULL),
 };
-#else
-static struct regulator_consumer_supply ldo24_supply[] = {
-	REGULATOR_SUPPLY("vlcd_2.2v", NULL),
-	REGULATOR_SUPPLY("VDD3", "s6e8aa0"),
-};
-#endif
 
 static struct regulator_consumer_supply ldo25_supply[] = {
+#ifdef CONFIG_MACH_SUPERIOR_KOR_SKT
+	REGULATOR_SUPPLY("vlcd_3.1v", NULL),
+#else
+	REGULATOR_SUPPLY("vlcd_3.3v", NULL),
+#endif
 	REGULATOR_SUPPLY("VCI", "s6e8aa0"),
+#if defined(CONFIG_MACH_SLP_T0_LTE)
+	REGULATOR_SUPPLY("VCI", "ea8061"),
+#endif
 };
 
 static struct regulator_consumer_supply ldo26_supply[] = {
@@ -392,13 +390,12 @@ static struct regulator_consumer_supply max77686_buck4[] = {
 	REGULATOR_SUPPLY("vdd_g3d", "mali_dev.0"),
 };
 
-#if !defined(CONFIG_MACH_GRANDE)
 static struct regulator_consumer_supply max77686_buck9 =
 	REGULATOR_SUPPLY("cam_isp_core_1.2v", NULL);
-#endif
 
 static struct regulator_consumer_supply max77686_enp32khz[] = {
 	REGULATOR_SUPPLY("lpo_in", "bcm47511"),
+	REGULATOR_SUPPLY("lpo_in", "bcm4752"),
 	REGULATOR_SUPPLY("lpo", "bcm4334_bluetooth"),
 };
 
@@ -423,49 +420,47 @@ static struct regulator_consumer_supply max77686_enp32khz[] = {
 	};
 
 REGULATOR_INIT(ldo3, "VCC_1.8V_AP", 1800000, 1800000, 1, 0, 0);
-REGULATOR_INIT(ldo5, "TOUCH_PULL_UP", 1800000, 1800000, 0,
+REGULATOR_INIT(ldo5, "VCC_1.8V_IO", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo8, "VMIPI_1.0V", 1000000, 1000000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
-#if !defined(CONFIG_MACH_GRANDE)
 REGULATOR_INIT(ldo9, "CAM_ISP_MIPI_1.2V", 1200000, 1200000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-#endif
 REGULATOR_INIT(ldo10, "VMIPI_1.8V", 1800000, 1800000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
 REGULATOR_INIT(ldo11, "VABB1_1.95V", 1950000, 1950000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo12, "VUOTG_3.0V", 3000000, 3000000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
-#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1) || \
-	defined(CONFIG_MACH_M0_GRANDECTC)
-REGULATOR_INIT(ldo13, "VUSBHUB_OSC_1.8V", 1800000, 1800000, 0,
+REGULATOR_INIT(ldo13, "tdmb_1.8v", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-#endif
 REGULATOR_INIT(ldo14, "VABB2_1.95V", 1950000, 1950000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
-#if !defined(CONFIG_MACH_GRANDE)
+#if defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
+REGULATOR_INIT(ldo17, "VTOUCH_1.8V", 1800000, 1800000, 0,
+	       REGULATOR_CHANGE_STATUS, 1);
+#else
 REGULATOR_INIT(ldo17, "CAM_SENSOR_CORE_1.2V", 1200000, 1200000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
+#endif
 REGULATOR_INIT(ldo18, "CAM_ISP_SENSOR_1.8V", 1800000, 1800000, 0,
+	       REGULATOR_CHANGE_STATUS, 1);
+REGULATOR_INIT(ldo19, "VT_CAM_1.8V", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo21, "VTF_2.8V", 2800000, 2800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-#endif
-REGULATOR_INIT(ldo23, "VREG_KEY_3.3V", 3300000, 3300000, 0,
+REGULATOR_INIT(ldo23, "TSP_AVDD_3.3V", 3300000, 3300000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-#if defined(CONFIG_MACH_C1) || defined(CONFIG_MACH_M3) ||	\
-	defined(CONFIG_MACH_M0) || \
-	defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_T0) || \
-	defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
 REGULATOR_INIT(ldo24, "VDD_1.8V_TSP", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
+#ifdef CONFIG_MACH_SUPERIOR_KOR_SKT
+REGULATOR_INIT(ldo25, "VCC_3.1V_LCD", 3100000, 3100000, 0,
+	       REGULATOR_CHANGE_STATUS, 1);
 #else
-REGULATOR_INIT(ldo24, "VDD_2.2V_LCD", 2200000, 2200000, 0,
+REGULATOR_INIT(ldo25, "VCC_3.3V_LCD", 3300000, 3300000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 #endif
-REGULATOR_INIT(ldo26, "VCC_MOTOR_3.3V", 3300000, 3300000, 0,
+REGULATOR_INIT(ldo26, "VCC_MOTOR_3.0V", 3000000, 3000000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 
 #if defined(CONFIG_MACH_SLP_PQ)
@@ -486,6 +481,25 @@ static struct regulator_init_data ldo24_pq11_init_data = {
 	.num_consumer_supplies = 1,
 	.consumer_supplies = ldo24_supply,
 };
+
+static struct regulator_init_data ldo25_redwood_init_data = {
+	.constraints = {
+		.name = "LED_A_2.8V",
+		.min_uV = 2800000,
+		.max_uV = 2800000,
+		.always_on = 0,
+		.boot_on = 0,
+		.apply_uV = 1,
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+		.state_mem = {
+			.enabled	= 0,
+			.disabled	= 1,
+		}
+	},
+	.num_consumer_supplies = 1,
+	.consumer_supplies = ldo25_supply,
+};
+
 #endif
 
 static struct regulator_init_data max77686_buck1_data = {
@@ -553,7 +567,6 @@ static struct regulator_init_data max77686_buck4_data = {
 	.consumer_supplies = max77686_buck4,
 };
 
-#if !defined(CONFIG_MACH_GRANDE)
 static struct regulator_init_data max77686_buck9_data = {
 	.constraints = {
 		.name = "CAM_ISP_CORE_1.2V",
@@ -568,7 +581,6 @@ static struct regulator_init_data max77686_buck9_data = {
 	.num_consumer_supplies = 1,
 	.consumer_supplies = &max77686_buck9,
 };
-#endif
 
 static struct regulator_init_data max77686_enp32khz_data = {
 	.constraints = {
@@ -589,32 +601,22 @@ static struct max77686_regulator_data max77686_regulators[] = {
 	{MAX77686_BUCK2, &max77686_buck2_data,},
 	{MAX77686_BUCK3, &max77686_buck3_data,},
 	{MAX77686_BUCK4, &max77686_buck4_data,},
-#if !defined(CONFIG_MACH_GRANDE)
-	/* CAM_ISP_CORE_1.2V */
 	{MAX77686_BUCK9, &max77686_buck9_data,},
-#endif
 	{MAX77686_LDO3, &ldo3_init_data,},
 	{MAX77686_LDO5, &ldo5_init_data,},
 	{MAX77686_LDO8, &ldo8_init_data,},
-#if !defined(CONFIG_MACH_GRANDE)
 	{MAX77686_LDO9, &ldo9_init_data,},
-#endif
 	{MAX77686_LDO10, &ldo10_init_data,},
 	{MAX77686_LDO11, &ldo11_init_data,},
 	{MAX77686_LDO12, &ldo12_init_data,},
-#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1) || \
-	defined(CONFIG_MACH_M0_GRANDECTC)
-	{MAX77686_LDO13, &ldo13_init_data,},
-#endif
 	{MAX77686_LDO14, &ldo14_init_data,},
-#if !defined(CONFIG_MACH_GRANDE)
 	{MAX77686_LDO17, &ldo17_init_data,},
 	{MAX77686_LDO18, &ldo18_init_data,},
+	{MAX77686_LDO19, &ldo19_init_data,},
 	{MAX77686_LDO21, &ldo21_init_data,},
-#endif
 	{MAX77686_LDO23, &ldo23_init_data,},
 	{MAX77686_LDO24, &ldo24_init_data,},
+	{MAX77686_LDO25, &ldo25_init_data,},
 	{MAX77686_LDO26, &ldo26_init_data,},
 	{MAX77686_P32KH, &max77686_enp32khz_data,},
 };
@@ -625,11 +627,6 @@ struct max77686_opmode_data max77686_opmode_data[MAX77686_REG_MAX] = {
 	[MAX77686_LDO10] = {MAX77686_LDO10, MAX77686_OPMODE_STANDBY},
 	[MAX77686_LDO11] = {MAX77686_LDO11, MAX77686_OPMODE_STANDBY},
 	[MAX77686_LDO12] = {MAX77686_LDO12, MAX77686_OPMODE_STANDBY},
-#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1) || \
-	defined(CONFIG_MACH_M0_GRANDECTC)
-	[MAX77686_LDO13] = {MAX77686_LDO13, MAX77686_OPMODE_NORMAL},
-#endif
 	[MAX77686_LDO14] = {MAX77686_LDO14, MAX77686_OPMODE_STANDBY},
 	[MAX77686_BUCK1] = {MAX77686_BUCK1, MAX77686_OPMODE_STANDBY},
 	[MAX77686_BUCK2] = {MAX77686_BUCK2, MAX77686_OPMODE_STANDBY},
@@ -687,161 +684,6 @@ struct max77686_platform_data exynos4_max77686_info = {
 	.buck4_voltage[6] = 1100000,	/* 1.1V */
 	.buck4_voltage[7] = 1100000,	/* 1.1V */
 };
-
-#ifdef CONFIG_REGULATOR_LP8720
-#define REGULATOR_INIT(_ldo, _name, _min_uV, _max_uV, _always_on, _ops_mask, \
-		       _disabled)					\
-	static struct regulator_init_data _ldo##_init_data = {		\
-		.constraints = {					\
-			.name	= _name,				\
-			.min_uV = _min_uV,				\
-			.max_uV = _max_uV,				\
-			.always_on	= _always_on,			\
-			.boot_on	= _always_on,			\
-			.apply_uV	= 1,				\
-			.valid_ops_mask = _ops_mask,			\
-			.state_mem = {					\
-				.disabled	= _disabled,		\
-				.enabled	= !(_disabled),		\
-			}						\
-		},							\
-		.num_consumer_supplies = ARRAY_SIZE(_ldo##_supply),	\
-		.consumer_supplies = &_ldo##_supply[0],			\
-	};
-
-#ifdef GPIO_FOLDER_PMIC_EN
-static struct regulator_consumer_supply folder_pmic_ldo1_supply[] = {
-	REGULATOR_SUPPLY("proximity_sensor_2.8v", NULL),
-};
-
-static struct regulator_consumer_supply folder_pmic_ldo2_supply[] = {
-	REGULATOR_SUPPLY("proximity_led_3.0v", NULL),
-};
-
-static struct regulator_consumer_supply folder_pmic_ldo3_supply[] = {
-	REGULATOR_SUPPLY("vt_cam_2.8v", NULL),
-};
-
-static struct regulator_consumer_supply folder_pmic_ldo4_supply[] = {
-	REGULATOR_SUPPLY("vt_cam_1.8v", NULL),
-};
-
-static struct regulator_consumer_supply folder_pmic_ldo5_supply[] = {
-	REGULATOR_SUPPLY("vlcd_2.8v", NULL),
-};
-
-static struct regulator_consumer_supply folder_pmic_buck_supply[] = {
-	REGULATOR_SUPPLY("vlcd_1.8v", NULL),
-};
-
-
-REGULATOR_INIT(folder_pmic_ldo1, "V_SENS_2.8V", 2800000, 2800000, 1,
-	       REGULATOR_CHANGE_STATUS, 1);
-
-REGULATOR_INIT(folder_pmic_ldo2, "LED_A_3.0V", 3000000, 3000000, 1,
-	       REGULATOR_CHANGE_STATUS, 1);
-
-REGULATOR_INIT(folder_pmic_ldo3, "V_CAM_2.8V", 2800000, 2800000, 0,
-	       REGULATOR_CHANGE_STATUS, 1);
-
-REGULATOR_INIT(folder_pmic_ldo4, "V_CAM_1.8V", 1800000, 1800000, 0,
-	       REGULATOR_CHANGE_STATUS, 1);
-
-REGULATOR_INIT(folder_pmic_ldo5, "V_LCD_2.8V", 2800000, 2800000, 0,
-	       REGULATOR_CHANGE_STATUS, 1);
-
-static struct regulator_init_data folder_pmic_buck_init_data = {
-	.constraints	= {
-		.name	= "V_LCD_1.8V",
-		.min_uV	= 1800000,
-		.max_uV	= 1800000,
-		.always_on	= 0,
-		.boot_on	= 0,
-		.apply_uV	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.state_mem = {
-			.disabled = 1,
-		},
-	},
-	.num_consumer_supplies = 1,
-	.consumer_supplies = folder_pmic_buck_supply,
-};
-
-static struct lp8720_regulator_subdev lp8720_folder_regulators[] = {
-	{ LP8720_LDO1, &folder_pmic_ldo1_init_data, },
-	{ LP8720_LDO2, &folder_pmic_ldo2_init_data, },
-	{ LP8720_LDO3, &folder_pmic_ldo3_init_data, },
-	{ LP8720_LDO4, &folder_pmic_ldo4_init_data, },
-	{ LP8720_LDO5, &folder_pmic_ldo5_init_data, },
-	{ LP8720_BUCK_V2, &folder_pmic_buck_init_data, },
-};
-
-struct lp8720_platform_data folder_pmic_info = {
-	.name = "lp8720_folder_pmic",
-	.en_pin = GPIO_FOLDER_PMIC_EN,
-	.num_regulators = ARRAY_SIZE(lp8720_folder_regulators),
-	.regulators = lp8720_folder_regulators,
-};
-#endif	/* GPIO_FOLDER_PMIC_EN */
-
-#ifdef GPIO_SUB_PMIC_EN
-static struct regulator_consumer_supply sub_pmic_ldo1_supply[] = {
-	REGULATOR_SUPPLY("vtf_2.8v", NULL),
-};
-
-static struct regulator_consumer_supply sub_pmic_ldo3_supply[] = {
-	REGULATOR_SUPPLY("cam_isp_mipi_1.2v", NULL),
-};
-
-static struct regulator_consumer_supply sub_pmic_ldo4_supply[] = {
-	REGULATOR_SUPPLY("cam_isp_sensor_1.8v", NULL),
-};
-
-static struct regulator_consumer_supply sub_pmic_buck_supply[] = {
-	REGULATOR_SUPPLY("cam_sensor_core_1.2v", NULL),
-};
-
-REGULATOR_INIT(sub_pmic_ldo1, "VTF_2.8V", 2800000, 2800000, 0,
-	       REGULATOR_CHANGE_STATUS, 1);
-
-REGULATOR_INIT(sub_pmic_ldo3, "CAM_ISP_MIPI_1.2V", 1200000, 1200000, 0,
-	       REGULATOR_CHANGE_STATUS, 1);
-
-REGULATOR_INIT(sub_pmic_ldo4, "CAM_ISP_SENSOR_1.8V", 1800000, 1800000, 0,
-	       REGULATOR_CHANGE_STATUS, 1);
-
-static struct regulator_init_data sub_pmic_buck_init_data = {
-	.constraints	= {
-		.name	= "CAM_SENSOR_CORE_1.2V",
-		.min_uV	= 1200000,
-		.max_uV	= 1200000,
-		.always_on	= 0,
-		.boot_on	= 0,
-		.apply_uV	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.state_mem = {
-			.disabled = 1,
-		},
-	},
-	.num_consumer_supplies = 1,
-	.consumer_supplies = sub_pmic_buck_supply,
-};
-
-static struct lp8720_regulator_subdev lp8720_sub_regulators[] = {
-	{ LP8720_LDO1, &sub_pmic_ldo1_init_data, },
-	{ LP8720_LDO3, &sub_pmic_ldo3_init_data, },
-	{ LP8720_LDO4, &sub_pmic_ldo4_init_data, },
-	{ LP8720_BUCK_V2, &sub_pmic_buck_init_data, },
-};
-
-struct lp8720_platform_data sub_pmic_info = {
-	.name = "lp8720_sub_pmic",
-	.en_pin = GPIO_SUB_PMIC_EN,
-	.num_regulators = ARRAY_SIZE(lp8720_sub_regulators),
-	.regulators = lp8720_sub_regulators,
-};
-#endif	/* GPIO_SUB_PMIC_EN */
-#endif	/* CONFIG_REGULATOR_LP8720 */
 
 void midas_power_init(void)
 {
@@ -959,6 +801,25 @@ static int __init regulator_init_with_rev(void)
 }
 
 postcore_initcall(regulator_init_with_rev);
+
+static const char redwood_ldo25_name[] = "led_a_2.8v";
+static int __init regulator_init_with_redwood(void)
+{
+	/* SLP PQ redwood */
+	if (__machine_arch_type == MACH_TYPE_REDWOOD) {
+		ldo25_supply[0].supply = redwood_ldo25_name;
+
+		memcpy(&ldo25_init_data, &ldo25_redwood_init_data,
+		       sizeof(struct regulator_init_data));
+	}
+
+	return 0;
+}
+
+postcore_initcall(regulator_init_with_redwood);
+
+
+
 #endif /* CONFIG_MACH_SLP_PQ */
 #endif /* CONFIG_MFD_MAX77693 */
 

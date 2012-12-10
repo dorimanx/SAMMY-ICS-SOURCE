@@ -1,4 +1,4 @@
-/* linux/arch/arm/mach-xxxx/board-iron-modems.c
+/* linux/arch/arm/mach-xxxx/board-t0cu-duos-modems.c
  * Copyright (C) 2010 Samsung Electronics. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
@@ -11,12 +11,13 @@
  * GNU General Public License for more details.
  */
 
-/* Modem configuraiton for Iron (P-Q + XMM6262)*/
+/* Modem configuraiton for T0_CU (P-Q + ESC6270)*/
 
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <linux/gpio.h>
 #include <mach/gpio-exynos4.h>
 #include <plat/gpio-cfg.h>
@@ -27,6 +28,11 @@
 #include <linux/platform_data/modem.h>
 #include <mach/sec_modem.h>
 
+#if defined(CONFIG_LINK_DEVICE_PLD)
+#include <linux/spi/spi.h>
+#include <mach/pld_pdata.h>
+#endif
+
 #if defined(CONFIG_GSM_MODEM_ESC6270)
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -36,10 +42,14 @@
 #include <mach/regs-mem.h>
 #include <plat/regs-srom.h>
 
-
 #define SROM_CS0_BASE		0x04000000
 #define SROM_WIDTH		0x01000000
+
+#if defined(CONFIG_LINK_DEVICE_PLD)
+#define SROM_NUM_ADDR_BITS	15
+#else
 #define SROM_NUM_ADDR_BITS	14
+#endif
 
 /*
  * For SROMC Configuration:
@@ -53,6 +63,7 @@
 
 /* Memory attributes */
 enum sromc_attr {
+	MEM_DATA_BUS_8BIT = 0x00000000,
 	MEM_DATA_BUS_16BIT = 0x00000001,
 	MEM_BYTE_ADDRESSABLE = 0x00000002,
 	MEM_WAIT_EN = 0x00000004,
@@ -81,7 +92,12 @@ struct sromc_access_cfg {
 };
 
 /* For MDM6600 EDPRAM (External DPRAM) */
+#if defined(CONFIG_LINK_DEVICE_PLD)
+#define MSM_EDPRAM_SIZE		0x10000	/* 8 KB (virtual)*/
+#else
 #define MSM_EDPRAM_SIZE		0x4000	/* 16 KB */
+#endif
+
 
 #define INT_MASK_REQ_ACK_F	0x0020
 #define INT_MASK_REQ_ACK_R	0x0010
@@ -94,6 +110,29 @@ struct sromc_access_cfg {
 #define INT_MASK_RES_ACK_RFS	0x0200	/* Response of REQ_ACK_RFS       */
 #define INT_MASK_SEND_RFS	0x0100	/* Indicate sending RFS data     */
 
+
+#if (MSM_EDPRAM_SIZE == 0x4000)
+/*
+	magic_code +
+	access_enable +
+	fmt_tx_head + fmt_tx_tail + fmt_tx_buff +
+	raw_tx_head + raw_tx_tail + raw_tx_buff +
+	fmt_rx_head + fmt_rx_tail + fmt_rx_buff +
+	raw_rx_head + raw_rx_tail + raw_rx_buff +
+	padding +
+	mbx_cp2ap +
+	mbx_ap2cp
+ =	2 +
+	2 +
+	2 + 2 + 2044 +
+	2 + 2 + 6128 +
+	2 + 2 + 2044 +
+	2 + 2 + 6128 +
+	16 +
+	2 +
+	2
+ =	16384
+*/
 
 #define MSM_DP_FMT_TX_BUFF_SZ	2044
 #define MSM_DP_RAW_TX_BUFF_SZ	6128
@@ -128,8 +167,6 @@ struct msm_edpram_ipc_cfg {
 };
 
 
-
-#if (MSM_EDPRAM_SIZE == 0x4000)
 /*
 ------------------
 Buffer : 15KByte
@@ -149,11 +186,85 @@ CP -> AP Intr : 2Byte
 */
 #define DP_BOOT_CLEAR_OFFSET	4
 #define DP_BOOT_RSRVD_OFFSET	0x3C00
-#define DP_BOOT_SIZE_OFFSET	    0x3FF6
-#define DP_BOOT_TAG_OFFSET	    0x3FF8
+#define DP_BOOT_SIZE_OFFSET	0x3FF6
+#define DP_BOOT_TAG_OFFSET	0x3FF8
 #define DP_BOOT_COUNT_OFFSET	0x3FFA
 
 #define DP_BOOT_FRAME_SIZE_LIMIT     0x3C00	/* 15KB = 15360byte = 0x3C00 */
+
+#elif (MSM_EDPRAM_SIZE == 0x10000)
+
+/*
+	mbx_ap2cp +			0x0
+	magic_code +
+	access_enable +
+	padding +
+	mbx_cp2ap +			0x1000
+	magic_code +
+	access_enable +
+	padding +
+	fmt_tx_head + fmt_tx_tail + fmt_tx_buff +		0x2000
+	raw_tx_head + raw_tx_tail + raw_tx_buff +
+	fmt_rx_head + fmt_rx_tail + fmt_rx_buff +		0x3000
+	raw_rx_head + raw_rx_tail + raw_rx_buff +
+  =	2 +
+	4094 +
+	2 +
+	4094 +
+	2 +
+	2 +
+	2 + 2 + 1020 +
+	2 + 2 + 3064 +
+	2 + 2 + 1020 +
+	2 + 2 + 3064
+ */
+
+#define MSM_DP_FMT_TX_BUFF_SZ	1024
+#define MSM_DP_RAW_TX_BUFF_SZ	3072
+#define MSM_DP_FMT_RX_BUFF_SZ	1024
+#define MSM_DP_RAW_RX_BUFF_SZ	3072
+
+#define MAX_MSM_EDPRAM_IPC_DEV	2	/* FMT, RAW */
+
+struct msm_edpram_ipc_cfg {
+	u16 mbx_ap2cp;
+	u16 magic_ap2cp;
+	u16 access_ap2cp;
+	u16 fmt_tx_head;
+	u16 raw_tx_head;
+	u16 fmt_rx_tail;
+	u16 raw_rx_tail;
+	u16 temp1;
+	u8 padding1[4080];
+
+	u16 mbx_cp2ap;
+	u16 magic_cp2ap;
+	u16 access_cp2ap;
+	u16 fmt_tx_tail;
+	u16 raw_tx_tail;
+	u16 fmt_rx_head;
+	u16 raw_rx_head;
+	u16 temp2;
+	u8 padding2[4080];
+
+	u8 fmt_tx_buff[MSM_DP_FMT_TX_BUFF_SZ];
+	u8 raw_tx_buff[MSM_DP_RAW_TX_BUFF_SZ];
+	u8 fmt_rx_buff[MSM_DP_FMT_RX_BUFF_SZ];
+	u8 raw_rx_buff[MSM_DP_RAW_RX_BUFF_SZ];
+
+	u8 padding3[16384];
+
+	u16 address_buffer;
+};
+
+#define DP_BOOT_CLEAR_OFFSET    0
+#define DP_BOOT_RSRVD_OFFSET    0
+#define DP_BOOT_SIZE_OFFSET     0x2
+#define DP_BOOT_TAG_OFFSET      0x4
+#define DP_BOOT_COUNT_OFFSET    0x6
+
+#define DP_BOOT_FRAME_SIZE_LIMIT     0x1000	/* 15KB = 15360byte = 0x3C00 */
+
 #else
 /*
 ------------------
@@ -174,481 +285,26 @@ CP -> AP Intr : 2Byte
 */
 #define DP_BOOT_CLEAR_OFFSET	4
 #define DP_BOOT_RSRVD_OFFSET	0x7C00
-#define DP_BOOT_SIZE_OFFSET	    0x7FF6
-#define DP_BOOT_TAG_OFFSET	    0x7FF8
+#define DP_BOOT_SIZE_OFFSET	0x7FF6
+#define DP_BOOT_TAG_OFFSET	0x7FF8
 #define DP_BOOT_COUNT_OFFSET	0x7FFA
 
 #define DP_BOOT_FRAME_SIZE_LIMIT     0x7C00	/* 31KB = 31744byte = 0x7C00 */
 #endif
 
-#endif
-
-extern int s3c_gpio_slp_cfgpin(unsigned int pin, unsigned int config);
-/* umts target platform data */
-static struct modem_io_t umts_io_devices[] = {
-	[0] = {
-		.name = "umts_ipc0",
-		.id = 0x1,
-		.format = IPC_FMT,
-		.io_type = IODEV_MISC,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[1] = {
-		.name = "umts_rfs0",
-		.id = 0x41,
-		.format = IPC_RFS,
-		.io_type = IODEV_MISC,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[2] = {
-		.name = "umts_boot0",
-		.id = 0x0,
-		.format = IPC_BOOT,
-		.io_type = IODEV_MISC,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[3] = {
-		.name = "multipdp",
-		.id = 0x1,
-		.format = IPC_MULTI_RAW,
-		.io_type = IODEV_DUMMY,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[4] = {
-#ifdef CONFIG_SLP
-		.name = "pdp0",
-#else
-		.name = "rmnet0",
-#endif
-		.id = 0x2A,
-		.format = IPC_RAW,
-		.io_type = IODEV_NET,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[5] = {
-#ifdef CONFIG_SLP
-		.name = "pdp1",
-#else
-		.name = "rmnet1",
-#endif
-		.id = 0x2B,
-		.format = IPC_RAW,
-		.io_type = IODEV_NET,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[6] = {
-#ifdef CONFIG_SLP
-		.name = "pdp2",
-#else
-		.name = "rmnet2",
-#endif
-		.id = 0x2C,
-		.format = IPC_RAW,
-		.io_type = IODEV_NET,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[7] = {
-		.name = "umts_router",
-		.id = 0x39,
-		.format = IPC_RAW,
-		.io_type = IODEV_MISC,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[8] = {
-		.name = "umts_csd",
-		.id = 0x21,
-		.format = IPC_RAW,
-		.io_type = IODEV_MISC,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[9] = {
-		.name = "umts_ramdump0",
-		.id = 0x0,
-		.format = IPC_RAMDUMP,
-		.io_type = IODEV_MISC,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-	[10] = {
-		.name = "umts_loopback0",
-		.id = 0x3f,
-		.format = IPC_RAW,
-		.io_type = IODEV_MISC,
-		.links = LINKTYPE(LINKDEV_HSIC),
-	},
-};
-
-/* To get modem state, register phone active irq using resource */
-static struct resource umts_modem_res[] = {
-};
-
-static int umts_link_ldo_enble(bool enable)
-{
-	/* Exynos HSIC V1.2 LDO was controlled by kernel */
-	return 0;
-}
-
-static int umts_link_reconnect(void);
-static struct modemlink_pm_data modem_link_pm_data = {
-	.name = "link_pm",
-	.link_ldo_enable = umts_link_ldo_enble,
-	.gpio_link_enable = 0,
-	.gpio_link_active = GPIO_ACTIVE_STATE,
-	.gpio_link_hostwake = GPIO_IPC_HOST_WAKEUP,
-	.gpio_link_slavewake = GPIO_IPC_SLAVE_WAKEUP,
-	.link_reconnect = umts_link_reconnect,
-};
-
-static struct modemlink_pm_link_activectl active_ctl;
-
-static void xmm_gpio_revers_bias_clear(void);
-static void xmm_gpio_revers_bias_restore(void);
-
-#ifndef GPIO_AP_DUMP_INT
-#define GPIO_AP_DUMP_INT 0
-#endif
-static struct modem_data umts_modem_data = {
-	.name = "xmm6262",
-
-	.gpio_cp_on = GPIO_PHONE_ON,
-	.gpio_reset_req_n = GPIO_CP_REQ_RESET,
-	.gpio_cp_reset = GPIO_CP_RST,
-	.gpio_pda_active = GPIO_PDA_ACTIVE,
-	.gpio_phone_active = GPIO_PHONE_ACTIVE,
-	.gpio_cp_dump_int = GPIO_CP_DUMP_INT,
-	.gpio_ap_dump_int = GPIO_AP_DUMP_INT,
-	.gpio_flm_uart_sel = 0,
-	.gpio_cp_warm_reset = 0,
-
-	.modem_type = IMC_XMM6262,
-	.link_types = LINKTYPE(LINKDEV_HSIC),
-	.modem_net = UMTS_NETWORK,
-	.use_handover = false,
-
-	.num_iodevs = ARRAY_SIZE(umts_io_devices),
-	.iodevs = umts_io_devices,
-
-	.link_pm_data = &modem_link_pm_data,
-	.gpio_revers_bias_clear = xmm_gpio_revers_bias_clear,
-	.gpio_revers_bias_restore = xmm_gpio_revers_bias_restore,
-};
-
-/* HSIC specific function */
-void set_slave_wake(void)
-{
-	if (gpio_get_value(modem_link_pm_data.gpio_link_hostwake)) {
-		pr_info("[MODEM_IF]Slave Wake\n");
-		if (gpio_get_value(modem_link_pm_data.gpio_link_slavewake)) {
-			pr_info("[MODEM_IF]Slave Wake set _-\n");
-			gpio_direction_output(
-			modem_link_pm_data.gpio_link_slavewake, 0);
-			mdelay(10);
-		}
-		gpio_direction_output(
-			modem_link_pm_data.gpio_link_slavewake, 1);
-	}
-}
-
-void set_host_states(struct platform_device *pdev, int type)
-{
-	int val = gpio_get_value(umts_modem_data.gpio_cp_reset);
-
-	if (!val) {
-		pr_info("CP not ready, Active State low\n");
-		return;
-	}
-
-	if (active_ctl.gpio_initialized) {
-		pr_err(LOG_TAG "Active States =%d, %s\n", type, pdev->name);
-		gpio_direction_output(modem_link_pm_data.gpio_link_active,
-			type);
-	}
-}
-
-void set_hsic_lpa_states(int states)
-{
-	int val = gpio_get_value(umts_modem_data.gpio_cp_reset);
-
-	mif_trace("\n");
-
-	if (val) {
-		switch (states) {
-		case STATE_HSIC_LPA_ENTER:
-			gpio_set_value(modem_link_pm_data.gpio_link_active, 0);
-			gpio_set_value(umts_modem_data.gpio_pda_active, 0);
-			pr_info(LOG_TAG "set hsic lpa enter: "
-				"active state (%d)" ", pda active (%d)\n",
-				gpio_get_value(
-					modem_link_pm_data.gpio_link_active),
-				gpio_get_value(umts_modem_data.gpio_pda_active)
-				);
-			break;
-		case STATE_HSIC_LPA_WAKE:
-			gpio_set_value(umts_modem_data.gpio_pda_active, 1);
-			pr_info(LOG_TAG "set hsic lpa wake: "
-				"pda active (%d)\n",
-				gpio_get_value(umts_modem_data.gpio_pda_active)
-				);
-			break;
-		case STATE_HSIC_LPA_PHY_INIT:
-			gpio_set_value(umts_modem_data.gpio_pda_active, 1);
-			set_slave_wake();
-			pr_info(LOG_TAG "set hsic lpa phy init: "
-				"slave wake-up (%d)\n",
-				gpio_get_value(
-					modem_link_pm_data.gpio_link_slavewake)
-				);
-			break;
-		}
-	}
-}
-
-int get_cp_active_state(void)
-{
-	return gpio_get_value(umts_modem_data.gpio_phone_active);
-}
-
-static int umts_link_reconnect(void)
-{
-	if (gpio_get_value(umts_modem_data.gpio_phone_active) &&
-		gpio_get_value(umts_modem_data.gpio_cp_reset)) {
-		pr_info("[MODEM_IF] trying reconnect link\n");
-		gpio_set_value(modem_link_pm_data.gpio_link_active, 0);
-		mdelay(10);
-		set_slave_wake();
-		gpio_set_value(modem_link_pm_data.gpio_link_active, 1);
-	} else
-		return -ENODEV;
-
-	return 0;
-}
-
-/* if use more than one modem device, then set id num */
-static struct platform_device umts_modem = {
-	.name = "modem_if",
-	.id = -1,
-	.num_resources = ARRAY_SIZE(umts_modem_res),
-	.resource = umts_modem_res,
-	.dev = {
-		.platform_data = &umts_modem_data,
-	},
-};
-
-static void umts_modem_cfg_gpio(void)
-{
-	int err = 0;
-
-	unsigned gpio_reset_req_n = umts_modem_data.gpio_reset_req_n;
-	unsigned gpio_cp_on = umts_modem_data.gpio_cp_on;
-	unsigned gpio_cp_rst = umts_modem_data.gpio_cp_reset;
-	unsigned gpio_pda_active = umts_modem_data.gpio_pda_active;
-	unsigned gpio_phone_active = umts_modem_data.gpio_phone_active;
-	unsigned gpio_cp_dump_int = umts_modem_data.gpio_cp_dump_int;
-	unsigned gpio_ap_dump_int = umts_modem_data.gpio_ap_dump_int;
-	unsigned gpio_flm_uart_sel = umts_modem_data.gpio_flm_uart_sel;
-	unsigned irq_phone_active = umts_modem_res[0].start;
-
-	if (gpio_reset_req_n) {
-		err = gpio_request(gpio_reset_req_n, "RESET_REQ_N");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			"RESET_REQ_N", err);
-		}
-		s3c_gpio_slp_cfgpin(gpio_reset_req_n, S3C_GPIO_SLP_OUT1);
-		gpio_direction_output(gpio_reset_req_n, 0);
-	}
-
-	if (gpio_cp_on) {
-		err = gpio_request(gpio_cp_on, "CP_ON");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "CP_ON", err);
-		}
-		gpio_direction_output(gpio_cp_on, 0);
-	}
-
-	if (gpio_cp_rst) {
-		err = gpio_request(gpio_cp_rst, "CP_RST");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "CP_RST", err);
-		}
-		s3c_gpio_slp_cfgpin(gpio_cp_rst, S3C_GPIO_SLP_OUT1);
-		gpio_direction_output(gpio_cp_rst, 0);
-	}
-
-	if (gpio_pda_active) {
-		err = gpio_request(gpio_pda_active, "PDA_ACTIVE");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "PDA_ACTIVE", err);
-		}
-		gpio_direction_output(gpio_pda_active, 0);
-	}
-
-	if (gpio_phone_active) {
-		err = gpio_request(gpio_phone_active, "PHONE_ACTIVE");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "PHONE_ACTIVE", err);
-		}
-		gpio_direction_input(gpio_phone_active);
-		pr_err(LOG_TAG "check phone active = %d\n", irq_phone_active);
-	}
-
-	if (gpio_cp_dump_int) {
-		err = gpio_request(gpio_cp_dump_int, "CP_DUMP_INT");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "CP_DUMP_INT", err);
-		}
-		gpio_direction_input(gpio_cp_dump_int);
-	}
-
-	if (gpio_ap_dump_int /*&& system_rev >= 11*/) {    /* MO rev1.0*/
-		err = gpio_request(gpio_ap_dump_int, "AP_DUMP_INT");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "AP_DUMP_INT", err);
-		}
-		gpio_direction_output(gpio_ap_dump_int, 0);
-	}
-
-	if (gpio_flm_uart_sel) {
-		err = gpio_request(gpio_flm_uart_sel, "GPS_UART_SEL");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "GPS_UART_SEL", err);
-		}
-		gpio_direction_output(gpio_reset_req_n, 0);
-	}
-
-	if (gpio_phone_active)
-		irq_set_irq_type(gpio_to_irq(gpio_phone_active),
-							IRQ_TYPE_LEVEL_HIGH);
-
-#if !defined(CONFIG_GSM_MODEM_ESC6270)
-	/* set low unused gpios between AP and CP */
-	err = gpio_request(GPIO_FLM_RXD, "FLM_RXD");
-	if (err)
-		pr_err(LOG_TAG "fail to request gpio %s : %d\n", "FLM_RXD",
-		err);
-	else {
-		gpio_direction_output(GPIO_FLM_RXD, 0);
-		s3c_gpio_setpull(GPIO_FLM_RXD, S3C_GPIO_PULL_NONE);
-	}
-	err = gpio_request(GPIO_FLM_TXD, "FLM_TXD");
-	if (err)
-		pr_err(LOG_TAG "fail to request gpio %s : %d\n", "FLM_TXD",
-		err);
-	else {
-		gpio_direction_output(GPIO_FLM_TXD, 0);
-		s3c_gpio_setpull(GPIO_FLM_TXD, S3C_GPIO_PULL_NONE);
-	}
-#endif
-
-	err = gpio_request(GPIO_SUSPEND_REQUEST, "SUS_REQ");
-	if (err)
-		pr_err(LOG_TAG "fail to request gpio %s : %d\n", "SUS_REQ",
-		err);
-	else {
-		gpio_direction_output(GPIO_SUSPEND_REQUEST, 0);
-		s3c_gpio_setpull(GPIO_SUSPEND_REQUEST, S3C_GPIO_PULL_NONE);
-	}
-	err = gpio_request(GPIO_GPS_CNTL, "GPS_CNTL");
-	if (err)
-		pr_err(LOG_TAG "fail to request gpio %s : %d\n", "GPS_CNTL",
-		err);
-	else {
-		gpio_direction_output(GPIO_GPS_CNTL, 0);
-		s3c_gpio_setpull(GPIO_GPS_CNTL, S3C_GPIO_PULL_NONE);
-	}
-
-	pr_info(LOG_TAG "umts_modem_cfg_gpio done\n");
-}
-
-static void xmm_gpio_revers_bias_clear(void)
-{
-	gpio_direction_output(umts_modem_data.gpio_pda_active, 0);
-	gpio_direction_output(umts_modem_data.gpio_phone_active, 0);
-	gpio_direction_output(umts_modem_data.gpio_cp_dump_int, 0);
-	gpio_direction_output(modem_link_pm_data.gpio_link_active, 0);
-	gpio_direction_output(modem_link_pm_data.gpio_link_hostwake, 0);
-	gpio_direction_output(modem_link_pm_data.gpio_link_slavewake, 0);
-
-	msleep(20);
-}
-
-static void xmm_gpio_revers_bias_restore(void)
-{
-	s3c_gpio_cfgpin(umts_modem_data.gpio_phone_active, S3C_GPIO_SFN(0xF));
-	s3c_gpio_cfgpin(modem_link_pm_data.gpio_link_hostwake,
-		S3C_GPIO_SFN(0xF));
-	gpio_direction_input(umts_modem_data.gpio_cp_dump_int);
-}
-
-static void modem_link_pm_config_gpio(void)
-{
-	int err = 0;
-
-	unsigned gpio_link_enable = modem_link_pm_data.gpio_link_enable;
-	unsigned gpio_link_active = modem_link_pm_data.gpio_link_active;
-	unsigned gpio_link_hostwake = modem_link_pm_data.gpio_link_hostwake;
-	unsigned gpio_link_slavewake = modem_link_pm_data.gpio_link_slavewake;
-	/* unsigned irq_link_hostwake = umts_modem_res[1].start; */
-
-	if (gpio_link_enable) {
-		err = gpio_request(gpio_link_enable, "LINK_EN");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "LINK_EN", err);
-		}
-		gpio_direction_output(gpio_link_enable, 0);
-	}
-
-	if (gpio_link_active) {
-		err = gpio_request(gpio_link_active, "LINK_ACTIVE");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "LINK_ACTIVE", err);
-		}
-		gpio_direction_output(gpio_link_active, 0);
-	}
-
-	if (gpio_link_hostwake) {
-		err = gpio_request(gpio_link_hostwake, "HOSTWAKE");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "HOSTWAKE", err);
-		}
-		gpio_direction_input(gpio_link_hostwake);
-	}
-
-	if (gpio_link_slavewake) {
-		err = gpio_request(gpio_link_slavewake, "SLAVEWAKE");
-		if (err) {
-			pr_err(LOG_TAG "fail to request gpio %s : %d\n",
-			       "SLAVEWAKE", err);
-		}
-		gpio_direction_output(gpio_link_slavewake, 0);
-	}
-
-	if (gpio_link_hostwake)
-		irq_set_irq_type(gpio_to_irq(gpio_link_hostwake),
-							IRQ_TYPE_EDGE_BOTH);
-
-	active_ctl.gpio_initialized = 1;
-
-	pr_info(LOG_TAG "modem_link_pm_config_gpio done\n");
-}
-
-/* For ESC6270 modem */
-#if defined(CONFIG_GSM_MODEM_ESC6270)
 static struct dpram_ipc_map gsm_ipc_map;
 
+#if defined(CONFIG_LINK_DEVICE_PLD)
+static struct sromc_cfg gsm_edpram_cfg = {
+	.attr = (MEM_DATA_BUS_8BIT),
+	.size = 0x10000,
+};
+#else
 static struct sromc_cfg gsm_edpram_cfg = {
 	.attr = (MEM_DATA_BUS_16BIT | MEM_WAIT_EN | MEM_BYTE_EN),
 	.size = MSM_EDPRAM_SIZE,
 };
+#endif
 
 static struct sromc_access_cfg gsm_edpram_access_cfg[] = {
 	[DPRAM_SPEED_LOW] = {
@@ -671,11 +327,96 @@ static struct modemlink_dpram_data gsm_edpram = {
 	.boot_tag_offset = DP_BOOT_TAG_OFFSET,
 	.boot_count_offset = DP_BOOT_COUNT_OFFSET,
 	.max_boot_frame_size = DP_BOOT_FRAME_SIZE_LIMIT,
+
+#if defined(CONFIG_LINK_DEVICE_PLD)
+	.aligned = 1,
+#endif
 };
 
 /*
 ** GSM target platform data
 */
+#if defined(CONFIG_LINK_DEVICE_PLD)
+static struct modem_io_t gsm_io_devices[] = {
+	[0] = {
+		.name = "gsm_ipc0",
+		.id = 0x01,
+		.format = IPC_FMT,
+		.io_type = IODEV_MISC,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[1] = {
+		.name = "gsm_rfs0",
+		.id = 0x28,
+		.format = IPC_RAW,
+		.io_type = IODEV_MISC,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[2] = {
+		.name = "gsm_boot0",
+		.id = 0x1,
+		.format = IPC_BOOT,
+		.io_type = IODEV_MISC,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[3] = {
+		.name = "gsm_multi_pdp",
+		.id = 0x1,
+		.format = IPC_MULTI_RAW,
+		.io_type = IODEV_DUMMY,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[4] = {
+		.name = "gsm_rmnet0",
+		.id = 0x2A,
+		.format = IPC_RAW,
+		.io_type = IODEV_NET,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[5] = {
+		.name = "gsm_rmnet1",
+		.id = 0x2B,
+		.format = IPC_RAW,
+		.io_type = IODEV_NET,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[6] = {
+		.name = "gsm_rmnet2",
+		.id = 0x2C,
+		.format = IPC_RAW,
+		.io_type = IODEV_NET,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[7] = {
+		.name = "gsm_router",
+		.id = 0x39,
+		.format = IPC_RAW,
+		.io_type = IODEV_NET,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[8] = {
+		.name = "gsm_csd",
+		.id = 0x21,
+		.format = IPC_RAW,
+		.io_type = IODEV_MISC,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[9] = {
+		.name = "gsm_ramdump0",
+		.id = 0x1,
+		.format = IPC_RAMDUMP,
+		.io_type = IODEV_MISC,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+	[10] = {
+		.name = "gsm_loopback0",
+		.id = 0x3F,
+		.format = IPC_RAW,
+		.io_type = IODEV_MISC,
+		.links = LINKTYPE(LINKDEV_PLD),
+	},
+};
+#else
 static struct modem_io_t gsm_io_devices[] = {
 	[0] = {
 		.name = "gsm_ipc0",
@@ -755,6 +496,7 @@ static struct modem_io_t gsm_io_devices[] = {
 		.links = LINKTYPE(LINKDEV_DPRAM),
 	},
 };
+#endif
 
 static struct modem_data gsm_modem_data = {
 	.name = "esc6270",
@@ -763,6 +505,7 @@ static struct modem_data gsm_modem_data = {
 	.gpio_cp_off       = 0,
 	.gpio_reset_req_n  = 0,	/* GPIO_CP_MSM_PMU_RST, */
 	.gpio_cp_reset     = GPIO_CP2_MSM_RST,
+
 	.gpio_pda_active   = 0,
 
 	.gpio_phone_active = GPIO_ESC_PHONE_ACTIVE,
@@ -777,11 +520,23 @@ static struct modem_data gsm_modem_data = {
 	.gpio_cp_dump_int   = 0,
 	.gpio_cp_warm_reset = 0,
 
+#if defined(CONFIG_LINK_DEVICE_PLD)
+	.gpio_fpga1_creset = GPIO_FPGA1_CRESET,
+	.gpio_fpga1_cdone = GPIO_FPGA1_CDONE,
+	.gpio_fpga1_rst_n = GPIO_FPGA1_RST_N,
+	.gpio_fpga1_cs_n = GPIO_FPGA1_CS_N,
+#endif
+
 	.use_handover = false,
 
 	.modem_net  = CDMA_NETWORK,
 	.modem_type = QC_ESC6270,
+#if defined(CONFIG_LINK_DEVICE_PLD)
+	.link_types = LINKTYPE(LINKDEV_PLD),
+#else
 	.link_types = LINKTYPE(LINKDEV_DPRAM),
+#endif
+
 	.link_name  = "esc6270_edpram",
 	.dpram = &gsm_edpram,
 
@@ -794,7 +549,7 @@ static struct modem_data gsm_modem_data = {
 
 static struct platform_device gsm_modem = {
 	.name = "modem_if",
-	.id = 1,
+	.id = 2,
 	.num_resources = 0,
 	.resource = NULL,
 	.dev = {
@@ -827,22 +582,33 @@ static void config_dpram_port_gpio(void)
 			__func__, addr_bits - EXYNOS4_GPIO_Y3_NR);
 		break;
 
+	case 15:
+		s3c_gpio_cfgrange_nopull(EXYNOS4_GPY3(0), EXYNOS4_GPIO_Y3_NR,
+					 S3C_GPIO_SFN(2));
+		s3c_gpio_cfgrange_nopull(EXYNOS4_GPY4(0), EXYNOS4_GPIO_Y4_NR,
+					 S3C_GPIO_SFN(2));
+		pr_info("[MDM] <%s> last data gpio EXYNOS4_GPY4(0) ~ %d\n",
+			__func__, EXYNOS4_GPIO_Y4_NR);
+		break;
+
 	default:
 		pr_err("[MDM/E] <%s> Invalid addr_bits!!!\n", __func__);
 		return;
 	}
 
 	/* Set GPIO for dpram data - 16bit */
+#if defined(CONFIG_LINK_DEVICE_PLD)
+	s3c_gpio_cfgrange_nopull(EXYNOS4_GPY5(0), 8, S3C_GPIO_SFN(2));
+#elif defined(CONFIG_LINK_DEVICE_DPRAM)
 	s3c_gpio_cfgrange_nopull(EXYNOS4_GPY5(0), 8, S3C_GPIO_SFN(2));
 	s3c_gpio_cfgrange_nopull(EXYNOS4_GPY6(0), 8, S3C_GPIO_SFN(2));
-
-#if 0
-	/* Setup SROMC CSn pins */
-	s3c_gpio_cfgpin(GPIO_DPRAM_CSN0, S3C_GPIO_SFN(2));
 #endif
 
-#if defined(CONFIG_GSM_MODEM_ESC6270)
+	/* Setup SROMC CSn pins */
 	s3c_gpio_cfgpin(GPIO_DPRAM_CSN1, S3C_GPIO_SFN(2));
+
+#if defined(CONFIG_GSM_MODEM_ESC6270)
+	s3c_gpio_cfgpin(GPIO_DPRAM_CSN0, S3C_GPIO_SFN(2));
 #endif
 
 	/* Config OEn, WEn */
@@ -852,7 +618,9 @@ static void config_dpram_port_gpio(void)
 	s3c_gpio_cfgrange_nopull(GPIO_DPRAM_LBN, 2, S3C_GPIO_SFN(2));
 
 	/* Config BUSY */
+#if !defined(CONFIG_LINK_DEVICE_PLD)
 	s3c_gpio_cfgpin(GPIO_DPRAM_BUSY, S3C_GPIO_SFN(2));
+#endif
 }
 
 
@@ -886,13 +654,13 @@ static void setup_sromc(unsigned csn, struct sromc_cfg *cfg,
 	/* Set the BW control field for the CSn */
 	bw &= ~(SROMC_MASK << (csn * 4));
 
-	if (cfg->attr | MEM_DATA_BUS_16BIT)
+	if (cfg->attr & MEM_DATA_BUS_16BIT)
 		bw |= (SROMC_DATA_16 << (csn * 4));
 
-	if (cfg->attr | MEM_WAIT_EN)
+	if (cfg->attr & MEM_WAIT_EN)
 		bw |= (SROMC_WAIT_EN << (csn * 4));
 
-	if (cfg->attr | MEM_BYTE_EN)
+	if (cfg->attr & MEM_BYTE_EN)
 		bw |= (SROMC_BYTE_EN << (csn * 4));
 
 	writel(bw, S5P_SROM_BW);
@@ -922,6 +690,13 @@ void config_gsm_modem_gpio(void)
 	unsigned gpio_phone_active = gsm_modem_data.gpio_phone_active;
 	unsigned gpio_flm_uart_sel = gsm_modem_data.gpio_flm_uart_sel;
 	unsigned gpio_ipc_int2ap = gsm_modem_data.gpio_ipc_int2ap;
+
+#if defined(CONFIG_LINK_DEVICE_PLD)
+	unsigned gpio_fpga1_creset = gsm_modem_data.gpio_fpga1_creset;
+	unsigned gpio_fpga1_cdone = gsm_modem_data.gpio_fpga1_cdone;
+	unsigned gpio_fpga1_rst_n = gsm_modem_data.gpio_fpga1_rst_n;
+	unsigned gpio_fpga1_cs_n = gsm_modem_data.gpio_fpga1_cs_n;
+#endif
 
 	pr_err("[MODEMS] <%s>\n", __func__);
 
@@ -1040,6 +815,53 @@ void config_gsm_modem_gpio(void)
 		s3c_gpio_cfgpin(EXYNOS4_GPA1(5), S3C_GPIO_SFN(0x2));
 		s3c_gpio_setpull(EXYNOS4_GPA1(5), S3C_GPIO_PULL_NONE);
 	}
+
+#if defined(CONFIG_LINK_DEVICE_PLD)
+	if (gpio_fpga1_creset) {
+		err = gpio_request(gpio_fpga1_creset, "FPGA1_CRESET");
+		if (err) {
+			pr_err("fail to request gpio %s, gpio %d, errno %d\n",
+					"FPGA1_CRESET", gpio_fpga1_creset, err);
+		} else {
+			gpio_direction_output(gpio_fpga1_creset, 0);
+			s3c_gpio_setpull(gpio_fpga1_creset, S3C_GPIO_PULL_NONE);
+		}
+	}
+
+	if (gpio_fpga1_cdone) {
+		err = gpio_request(gpio_fpga1_cdone, "FPGA1_CDONE");
+		if (err) {
+			pr_err("fail to request gpio %s, gpio %d, errno %d\n",
+					"FPGA1_CDONE", gpio_fpga1_cdone, err);
+		} else {
+			s3c_gpio_cfgpin(gpio_fpga1_cdone, S3C_GPIO_INPUT);
+			s3c_gpio_setpull(gpio_fpga1_cdone, S3C_GPIO_PULL_NONE);
+		}
+	}
+
+	if (gpio_fpga1_rst_n)	{
+		err = gpio_request(gpio_fpga1_rst_n, "FPGA1_RST");
+		if (err) {
+			pr_err("fail to request gpio %s, gpio %d, errno %d\n",
+					"FPGA1_RST", gpio_fpga1_rst_n, err);
+		} else {
+			gpio_direction_output(gpio_fpga1_rst_n, 0);
+			s3c_gpio_setpull(gpio_fpga1_rst_n, S3C_GPIO_PULL_NONE);
+		}
+	}
+
+	if (gpio_fpga1_cs_n)	{
+		err = gpio_request(gpio_fpga1_cs_n, "SPI_CS2_1");
+		if (err) {
+			pr_err("fail to request gpio %s, gpio %d, errno %d\n",
+					"SPI_CS2_1", gpio_fpga1_cs_n, err);
+		} else {
+			gpio_direction_output(gpio_fpga1_cs_n, 0);
+			s3c_gpio_setpull(gpio_fpga1_cs_n, S3C_GPIO_PULL_NONE);
+		}
+	}
+#endif
+
 }
 
 static u8 *gsm_edpram_remap_mem_region(struct sromc_cfg *cfg)
@@ -1065,9 +887,20 @@ static u8 *gsm_edpram_remap_mem_region(struct sromc_cfg *cfg)
 	/* Map for IPC */
 	ipc_map = (struct msm_edpram_ipc_cfg *)dp_base;
 
+#if defined(CONFIG_LINK_DEVICE_PLD)
 	/* Magic code and access enable fields */
-	gsm_ipc_map.magic  = (u16 __iomem *)&ipc_map->magic;
-	gsm_ipc_map.access = (u16 __iomem *)&ipc_map->access;
+	gsm_ipc_map.magic_ap2cp = (u16 __iomem *) &ipc_map->magic_ap2cp;
+	gsm_ipc_map.access_ap2cp = (u16 __iomem *) &ipc_map->access_ap2cp;
+
+	gsm_ipc_map.magic_cp2ap = (u16 __iomem *) &ipc_map->magic_cp2ap;
+	gsm_ipc_map.access_cp2ap = (u16 __iomem *) &ipc_map->access_cp2ap;
+
+	gsm_ipc_map.address_buffer = (u16 __iomem *) &ipc_map->address_buffer;
+#else
+	/* Magic code and access enable fields */
+	gsm_ipc_map.magic = (u16 __iomem *) &ipc_map->magic;
+	gsm_ipc_map.access = (u16 __iomem *) &ipc_map->access;
+#endif
 
 	/* FMT */
 	dev = &gsm_ipc_map.dev[IPC_FMT];
@@ -1117,34 +950,189 @@ static u8 *gsm_edpram_remap_mem_region(struct sromc_cfg *cfg)
 }
 #endif
 
+#if defined(CONFIG_LINK_DEVICE_PLD)
+#define PLD_BLOCK_SIZE	0x8000
+
+static struct spi_device *p_spi;
+
+static int pld_spi_probe(struct spi_device *spi)
+{
+	int ret = 0;
+
+	mif_err("pld spi proble.\n");
+
+	p_spi = spi;
+	p_spi->mode = SPI_MODE_0;
+	p_spi->bits_per_word = 32;
+
+	ret = spi_setup(p_spi);
+	if (ret != 0) {
+		mif_err("spi_setup ERROR : %d\n", ret);
+		return ret;
+	}
+
+	dev_info(&p_spi->dev, "(%d) spi probe Done.\n", __LINE__);
+
+	return ret;
+}
+
+static int pld_spi_remove(struct spi_device *spi)
+{
+	return 0;
+}
+
+static struct spi_driver pld_spi_driver = {
+	.probe = pld_spi_probe,
+	.remove = __devexit_p(pld_spi_remove),
+	.driver = {
+		.name = "modem_if_spi",
+		.bus = &spi_bus_type,
+		.owner = THIS_MODULE,
+	},
+};
+
+static int config_spi_dev_init(void)
+{
+	int ret = 0;
+
+	ret = spi_register_driver(&pld_spi_driver);
+	if (ret < 0) {
+		pr_info("spi_register_driver() fail : %d\n", ret);
+		return ret;
+	}
+
+	pr_info("[%s] Done\n", __func__);
+	return 0;
+}
+
+int spi_tx_rx_sync(u8 *tx_d, u8 *rx_d, unsigned len)
+{
+	struct spi_transfer t;
+	struct spi_message msg;
+
+	memset(&t, 0, sizeof t);
+
+	t.len = len;
+
+	t.tx_buf = tx_d;
+	t.rx_buf = rx_d;
+
+	t.cs_change = 0;
+
+	t.bits_per_word = 8;
+	t.speed_hz = 12000000;
+
+	spi_message_init(&msg);
+	spi_message_add_tail(&t, &msg);
+
+	return spi_sync(p_spi, &msg);
+}
+
+static int pld_send_fgpa_bin(void)
+{
+	int retval = 0;
+	char *tx_b, *rx_b;
+
+	unsigned gpio_fpga1_creset = gsm_modem_data.gpio_fpga1_creset;
+	unsigned gpio_fpga1_cdone = gsm_modem_data.gpio_fpga1_cdone;
+	unsigned gpio_fpga1_rst_n = gsm_modem_data.gpio_fpga1_rst_n;
+	unsigned gpio_fpga1_cs_n = gsm_modem_data.gpio_fpga1_cs_n;
+
+	char dummy_data[8] = "abcdefg";
+
+	mif_info("sizeofpld : 0%d ", sizeof(fpga_bin));
+
+	if (gpio_fpga1_cs_n)	{
+		s3c_gpio_cfgpin(gpio_fpga1_cs_n, S3C_GPIO_OUTPUT);
+		s3c_gpio_setpull(gpio_fpga1_cs_n, S3C_GPIO_PULL_NONE);
+		gpio_direction_output(gpio_fpga1_cs_n, 0);
+	}
+
+	msleep(20);
+
+	if (gpio_fpga1_creset) {
+		gpio_direction_output(gpio_fpga1_creset, 1);
+		s3c_gpio_setpull(gpio_fpga1_creset, S3C_GPIO_PULL_NONE);
+	}
+
+	msleep(20);
+
+	tx_b = kmalloc(PLD_BLOCK_SIZE*2, GFP_ATOMIC);
+	if (!tx_b) {
+		mif_err("(%d) tx_b kmalloc fail.",
+			__LINE__);
+		return -ENOMEM;
+	}
+	memset(tx_b, 0, PLD_BLOCK_SIZE*2);
+	memcpy(tx_b, fpga_bin, sizeof(fpga_bin));
+
+	rx_b = kmalloc(PLD_BLOCK_SIZE*2, GFP_ATOMIC);
+	if (!rx_b) {
+		mif_err("(%d) rx_b kmalloc fail.",
+			__LINE__);
+		retval = -ENOMEM;
+		goto err;
+	}
+	memset(rx_b, 0, PLD_BLOCK_SIZE*2);
+
+	retval = spi_tx_rx_sync(tx_b, rx_b, sizeof(fpga_bin));
+	if (retval != 0) {
+		mif_err("(%d) spi sync error : %d\n",
+			__LINE__, retval);
+		goto err;
+	}
+
+	memset(tx_b, 0, PLD_BLOCK_SIZE*2);
+	memcpy(tx_b, dummy_data, sizeof(dummy_data));
+
+	retval = spi_tx_rx_sync(tx_b, rx_b, sizeof(dummy_data));
+	if (retval != 0) {
+		mif_err("(%d) spi sync error : %d\n",
+			__LINE__, retval);
+		goto err;
+	}
+
+	msleep(20);
+
+	mif_info("PLD_CDone1[%d]\n",
+		gpio_get_value(gpio_fpga1_cdone));
+
+	if (gpio_fpga1_rst_n)	{
+		gpio_direction_output(gpio_fpga1_rst_n, 1);
+		s3c_gpio_setpull(gpio_fpga1_rst_n, S3C_GPIO_PULL_NONE);
+	}
+
+err:
+	kfree(tx_b);
+	kfree(rx_b);
+
+	return retval;
+
+}
+#endif
 
 static int __init init_modem(void)
 {
 #if defined(CONFIG_GSM_MODEM_ESC6270)
 	struct sromc_cfg *cfg = NULL;
 	struct sromc_access_cfg *acc_cfg = NULL;
-#endif
+
 	int ret;
 	pr_info(LOG_TAG "init_modem, system_rev = %d\n", system_rev);
 
-	/* umts gpios configuration */
-	umts_modem_cfg_gpio();
-	modem_link_pm_config_gpio();
-	ret = platform_device_register(&umts_modem);
-	if (ret < 0)
-		return ret;
-
-	/* For ESC6270 modem */
-#if defined(CONFIG_GSM_MODEM_ESC6270)
-	config_dpram_port_gpio();
-	init_sromc();
-
-	gsm_edpram_cfg.csn = 1;
+	gsm_edpram_cfg.csn = 0;
 	gsm_edpram_cfg.addr = SROM_CS0_BASE + (SROM_WIDTH * gsm_edpram_cfg.csn);
 	gsm_edpram_cfg.end = gsm_edpram_cfg.addr + gsm_edpram_cfg.size - 1;
 
+	config_dpram_port_gpio();
 	config_gsm_modem_gpio();
 
+#if defined(CONFIG_LINK_DEVICE_PLD)
+	config_spi_dev_init();
+	pld_send_fgpa_bin();
+#endif
+
+	init_sromc();
 	cfg = &gsm_edpram_cfg;
 	acc_cfg = &gsm_edpram_access_cfg[DPRAM_SPEED_LOW];
 	setup_sromc(cfg->csn, cfg, acc_cfg);
