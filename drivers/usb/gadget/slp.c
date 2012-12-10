@@ -66,6 +66,7 @@
 #include "f_acm.c"
 #include "f_mtp_slp.c"
 #include "f_accessory.c"
+#include "f_diag.c"
 #define USB_ETH_RNDIS y
 #include "f_rndis.c"
 #include "rndis.c"
@@ -134,8 +135,6 @@ static struct class *android_class;
 static struct android_dev *_android_dev;
 static int android_bind_config(struct usb_configuration *c);
 static void android_unbind_config(struct usb_configuration *c);
-static int android_setup(struct usb_configuration *c,
-			 const struct usb_ctrlrequest *ctrl);
 
 static DEFINE_MUTEX(enable_lock);
 
@@ -178,7 +177,6 @@ static struct usb_device_descriptor device_desc = {
 static struct usb_configuration first_config_driver = {
 	.label = "slp_first_config",
 	.unbind = android_unbind_config,
-	.setup = android_setup,
 	.bConfigurationValue = USB_CONFIGURATION_1,
 	.bmAttributes = USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER,
 	.bMaxPower = 0x30,	/* 96ma */
@@ -187,7 +185,6 @@ static struct usb_configuration first_config_driver = {
 static struct usb_configuration second_config_driver = {
 	.label = "slp_second_config",
 	.unbind = android_unbind_config,
-	.setup = android_setup,
 	.bConfigurationValue = USB_CONFIGURATION_2,
 	.bmAttributes = USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER,
 	.bMaxPower = 0x30,	/* 96ma */
@@ -861,6 +858,65 @@ static struct android_usb_function accessory_function = {
 	.ctrlrequest	= accessory_function_ctrlrequest,
 };
 
+/* DIAG : enabled DIAG clients- "diag[,diag_mdm]" */
+static char diag_clients[32];
+static ssize_t clients_store(
+		struct device *device, struct device_attribute *attr,
+		const char *buff, size_t size)
+{
+	strlcpy(diag_clients, buff, sizeof(diag_clients));
+
+	return size < (sizeof(diag_clients)-1) ?
+				size : sizeof(diag_clients)-1;
+}
+
+static DEVICE_ATTR(clients, S_IWUSR, NULL, clients_store);
+static struct device_attribute *diag_function_attributes[] = {
+				&dev_attr_clients, NULL };
+
+static int diag_function_init(struct android_usb_function *f,
+				 struct usb_composite_dev *cdev)
+{
+	return diag_setup();
+}
+
+static void diag_function_cleanup(struct android_usb_function *f)
+{
+	diag_cleanup();
+}
+
+static int diag_function_bind_config(struct android_usb_function *f,
+					struct usb_configuration *c)
+{
+	char *name;
+	char buf[32], *b;
+	int err = -1;
+	int (*notify)(uint32_t, const char *) = NULL;
+
+	strlcpy(buf, diag_clients, sizeof(buf));
+	b = strim(buf);
+	while (b) {
+		notify = NULL;
+		name = strsep(&b, ",");
+
+		if (name) {
+			err = diag_function_add(c, name, notify);
+			if (err)
+				pr_err("%s : usb: diag: Cannot open channel '%s\r\n",
+						 __func__, name);
+		}
+	}
+	return err;
+}
+
+static struct android_usb_function diag_function = {
+	.name		= "diag",
+	.init		= diag_function_init,
+	.cleanup	= diag_function_cleanup,
+	.bind_config	= diag_function_bind_config,
+	.attributes	= diag_function_attributes,
+};
+
 static struct android_usb_function *supported_functions[] = {
 	&sdb_function,
 	&acm_function,
@@ -868,6 +924,7 @@ static struct android_usb_function *supported_functions[] = {
 	&rndis_function,
 	&mass_storage_function,
 	&accessory_function,
+	&diag_function,
 	NULL
 };
 
@@ -1323,20 +1380,35 @@ static struct usb_composite_driver android_usb_driver = {
 };
 
 static int
-android_setup(struct usb_configuration *c, const struct usb_ctrlrequest *ctrl)
+android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 {
 	struct android_dev *adev = _android_dev;
+	struct usb_composite_dev *cdev = get_gadget_data(gadget);
+	u8 b_requestType = ctrl->bRequestType;
 	struct android_usb_function *f;
 	int value = -EOPNOTSUPP;
 
-	/* To check & report it to platform , we check it all */
-	list_for_each_entry(f, &adev->available_functions, available_list) {
-		if (f->ctrlrequest) {
-			value = f->ctrlrequest(f, c->cdev, ctrl);
-			if (value >= 0)
-				break;
+	if ((b_requestType & USB_TYPE_MASK) == USB_TYPE_VENDOR) {
+		struct usb_request *req = cdev->req;
+
+		req->zero = 0;
+		req->complete = composite_setup_complete;
+		req->length = 0;
+		gadget->ep0->driver_data = cdev;
+
+		/* To check & report it to platform , we check it all */
+		list_for_each_entry(f, &adev->available_functions,
+			available_list) {
+			if (f->ctrlrequest) {
+				value = f->ctrlrequest(f, cdev, ctrl);
+				if (value >= 0)
+					break;
+			}
 		}
 	}
+
+	if (value < 0)
+		value = composite_setup(gadget, ctrl);
 
 	return value;
 }
@@ -1428,6 +1500,9 @@ static int __devinit slp_multi_probe(struct platform_device *pdev)
 
 	slp_multi_nluns = pdata->nluns;
 	_android_dev = adev;
+
+	/* Override composite driver functions */
+	composite_driver.setup = android_setup;
 
 	err = usb_composite_probe(&android_usb_driver, android_bind);
 	if (err) {
