@@ -329,10 +329,6 @@ struct host_interest {
 #define HI_OPTION_FW_SUBMODE_BITS      0x2
 #define HI_OPTION_FW_SUBMODE_SHIFT     0x14
 
-#ifdef SS_3RD_INTF
-#define HI_OPTION_VIRTU_MAC_ENABLE     0x10
-#endif
-
 /* Convert a Target virtual address into a Target physical address */
 #define AR6003_VTOP(vaddr) ((vaddr) & 0x001fffff)
 #define AR6004_VTOP(vaddr) (vaddr)

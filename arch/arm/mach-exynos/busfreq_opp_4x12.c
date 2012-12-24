@@ -339,15 +339,8 @@ static unsigned int exynos4412_1ghz_int_volt[ASV_GROUP][LV_END] = {
 	{0, 1000000, 1000000,  912500,  912500, 875000, 875000}, /* RESERVED */
 };
 
-/* To optimize power, AC timing value for SDRAM row of pega chip */
-static unsigned int *exynos4_timingrow_value;
-
 static unsigned int exynos4x12_timingrow[LV_END] = {
 	0x34498691, 0x34498691, 0x24488490, 0x24488490, 0x154882D0, 0x154882D0, 0x0D488210
-};
-
-static unsigned int exynos4x12_timingrow_rev2[LV_END] = {
-	0x3A5A8713, 0x3A5A8713, 0x273764CD, 0x273764CD, 0x17244308, 0x14243287, 0x0F242205
 };
 
 static unsigned int clkdiv_dmc0[LV_END][6] = {
@@ -711,23 +704,22 @@ void exynos4x12_prepare(unsigned int index)
 
 #ifdef CONFIG_ARM_TRUSTZONE
 	exynos_smc_readsfr(EXYNOS4_PA_DMC0_4212 + TIMINGROW_OFFSET, &timing0);
-	timing0 |= exynos4_timingrow_value[index];
-
+	timing0 |= exynos4x12_timingrow[index];
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(EXYNOS4_PA_DMC0_4212 + TIMINGROW_OFFSET),
 			timing0, 0);
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(EXYNOS4_PA_DMC0_4212 + TIMINGROW_OFFSET),
-			exynos4_timingrow_value[index], 0);
+			exynos4x12_timingrow[index], 0);
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(EXYNOS4_PA_DMC1_4212 + TIMINGROW_OFFSET),
 			timing0, 0);
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(EXYNOS4_PA_DMC1_4212 + TIMINGROW_OFFSET),
-			exynos4_timingrow_value[index], 0);
+			exynos4x12_timingrow[index], 0);
 #else
 	timing0 = __raw_readl(S5P_VA_DMC0 + TIMINGROW_OFFSET);
-	timing0 |= exynos4_timingrow_value[index];
+	timing0 |= exynos4x12_timingrow[index];
 	__raw_writel(timing0, S5P_VA_DMC0 + TIMINGROW_OFFSET);
-	__raw_writel(exynos4_timingrow_value[index], S5P_VA_DMC0 + TIMINGROW_OFFSET);
+	__raw_writel(exynos4x12_timingrow[index], S5P_VA_DMC0 + TIMINGROW_OFFSET);
 	__raw_writel(timing0, S5P_VA_DMC1 + TIMINGROW_OFFSET);
-	__raw_writel(exynos4_timingrow_value[index], S5P_VA_DMC1 + TIMINGROW_OFFSET);
+	__raw_writel(exynos4x12_timingrow[index], S5P_VA_DMC1 + TIMINGROW_OFFSET);
 #endif
 }
 
@@ -737,22 +729,22 @@ void exynos4x12_post(unsigned int index)
 
 #ifdef CONFIG_ARM_TRUSTZONE
 	exynos_smc_readsfr(EXYNOS4_PA_DMC0_4212 + TIMINGROW_OFFSET, &timing0);
-	timing0 |= exynos4_timingrow_value[index];
+	timing0 |= exynos4x12_timingrow[index];
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(EXYNOS4_PA_DMC0_4212 + TIMINGROW_OFFSET),
 			timing0, 0);
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(EXYNOS4_PA_DMC0_4212 + TIMINGROW_OFFSET),
-			exynos4_timingrow_value[index], 0);
+			exynos4x12_timingrow[index], 0);
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(EXYNOS4_PA_DMC1_4212 + TIMINGROW_OFFSET),
 			timing0, 0);
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(EXYNOS4_PA_DMC1_4212 + TIMINGROW_OFFSET),
-			exynos4_timingrow_value[index], 0);
+			exynos4x12_timingrow[index], 0);
 #else
 	timing0 = __raw_readl(S5P_VA_DMC0 + TIMINGROW_OFFSET);
-	timing0 |= exynos4_timingrow_value[index];
+	timing0 |= exynos4x12_timingrow[index];
 	__raw_writel(timing0, S5P_VA_DMC0 + TIMINGROW_OFFSET);
-	__raw_writel(exynos4_timingrow_value[index], S5P_VA_DMC0 + TIMINGROW_OFFSET);
+	__raw_writel(exynos4x12_timingrow[index], S5P_VA_DMC0 + TIMINGROW_OFFSET);
 	__raw_writel(timing0, S5P_VA_DMC1 + TIMINGROW_OFFSET);
-	__raw_writel(exynos4_timingrow_value[index], S5P_VA_DMC1 + TIMINGROW_OFFSET);
+	__raw_writel(exynos4x12_timingrow[index], S5P_VA_DMC1 + TIMINGROW_OFFSET);
 #endif
 }
 
@@ -967,11 +959,9 @@ int exynos4x12_init(struct device *dev, struct busfreq_data *data)
 
 	if (soc_is_exynos4412() && samsung_rev() >= EXYNOS4412_REV_2_0) {
 		exynos4_busfreq_table = exynos4_busfreq_table_rev2;
-		exynos4_timingrow_value = exynos4x12_timingrow_rev2;
 		exynos4_qos_value = exynos4_qos_value_rev2;
 	} else {
 		exynos4_busfreq_table = exynos4_busfreq_table_orig;
-		exynos4_timingrow_value = exynos4x12_timingrow;
 		exynos4_qos_value = exynos4_qos_value_orig;
 	}
 

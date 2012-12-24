@@ -174,9 +174,8 @@ fw-shipped-$(CONFIG_EPEN_WACOM_G5SP) += epen/W8501.bin epen/W8501_P48.bin
 fw-shipped-$(CONFIG_EPEN_WACOM_G9PM) += epen/W9001_B746.bin epen/W9001_B713.bin epen/W9001_B660.bin \
 			epen/W9001_B746S.bin epen/W9001_B746L.bin \
 			epen/W9001_B746JD.bin \
-			epen/W9001_B746VZW.bin epen/W9001_B746USC.bin \
+			epen/W9001_B746VZW.bin \
 			epen/W9001_0700.bin
-fw-shipped-$(CONFIG_EPEN_WACOM_G9PL) += epen/W9002_B720.bin
 
 #for sensorhub
 fw-shipped-$(CONFIG_SENSORS_SSP) += ssp.fw

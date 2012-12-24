@@ -69,7 +69,7 @@ enum {
 #define P2_CHARGING_FEATURE_02	/* SMB136 + MAX17042, Cable detect by TA_nCon */
 #endif
 
-#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_KONA)
+#if defined(CONFIG_MACH_P4NOTE)
 #define P4_CHARGING_FEATURE_01	/* SMB347 + MAX17042, use TA_nCON */
 #if defined(CONFIG_TARGET_LOCALE_USA)
 enum abs_charging_property {
@@ -580,10 +580,6 @@ static void sec_get_cable_status(struct battery_data *battery)
 		battery->current_cable_status = CHARGER_BATTERY;
 		battery->info.batt_improper_ta = 0;
 		battery->charge_type = POWER_SUPPLY_CHARGE_TYPE_NONE;
-#if defined(CONFIG_SMB347_CHARGER)
-		if (battery->pdata->set_aicl_state)
-			battery->pdata->set_aicl_state(1);
-#endif /* CONFIG_SMB347_CHARGER */
 	}
 
 	if (battery->pdata->inform_charger_connection)
@@ -699,11 +695,6 @@ static int is_over_abs_time(struct battery_data *battery)
 
 	if (battery->charging_start_time + total_time < cur_time.tv_sec) {
 		pr_info("Charging time out");
-#if defined(CONFIG_SMB347_CHARGER)
-		if (!battery->info.batt_is_recharging &&
-			battery->pdata->set_aicl_state)
-			battery->pdata->set_aicl_state(0);
-#endif /* CONFIG_SMB347_CHARGER */
 		return 1;
 	} else
 		return 0;
@@ -868,25 +859,16 @@ static int sec_get_bat_level(struct power_supply *bat_ps)
 		((battery->info.charging_source == CHARGER_AC) ||
 		(battery->info.charging_source == CHARGER_MISC) ||
 		(battery->info.charging_source == CHARGER_DOCK)) &&
-		!battery->is_first_check && !battery->abs_timer_status &&
-		(fg_vcell > 4000 && fg_soc > 95 && fg_vfsoc > 70)) {
-			if (!battery->info.batt_is_recharging &&
-				battery->full_check_flag >= 2  &&
-				((fg_current > 20 && fg_current < 330) &&
-				(avg_current > 20 && avg_current < 350))) {
-				fg_set_full_charged();
-				fg_soc = get_fuelgauge_value(FG_LEVEL);
-				battery->abs_timer_status |=
-				ABS_CHARGING_PROP_PRE_FULL_CHARGING;
-			} else if (battery->info.batt_is_recharging &&
-				!battery->abs_timer_status &&
-				battery->full_check_flag >= 2 && fg_soc > 99) {
-				fg_set_full_charged();
-				fg_soc = get_fuelgauge_value(FG_LEVEL);
-				battery->abs_timer_status |=
-				ABS_CHARGING_PROP_PRE_FULL_CHARGING;
-				pr_info("%s: fully charged by abs timer\n",
+		!battery->is_first_check &&
+		(fg_vcell > 4000 && fg_soc >= 100 && fg_vfsoc > 70)) {
+			pr_info("%s: [BATT]fully charged by abs timer\n",
 				__func__);
+			if (!battery->abs_timer_status &&
+				battery->full_check_flag == 2) {
+				fg_set_full_charged();
+				fg_soc = get_fuelgauge_value(FG_LEVEL);
+				battery->abs_timer_status |=
+				ABS_CHARGING_PROP_PRE_FULL_CHARGING;
 			} else if (battery->full_check_flag < 2)
 				pr_info("%s: full_check_flag (%d)", __func__,
 					battery->full_check_flag);
@@ -1701,7 +1683,7 @@ static ssize_t sec_bat_show_property(struct device *dev,
 #endif
 	case BATT_CHARGING_SOURCE:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
-		battery->cable_type);
+		debug_batterydata->info.charging_source);
 		break;
 	case BATT_FG_SOC:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
@@ -2126,27 +2108,22 @@ static int sec_cable_status_update(struct battery_data *battery, int status)
 	case CHARGER_BATTERY:
 		pr_info("cable NOT PRESENT ");
 		battery->info.charging_source = CHARGER_BATTERY;
-		battery->cable_type = POWER_SUPPLY_TYPE_BATTERY;
 		break;
 	case CHARGER_USB:
 		pr_info("cable USB");
 		battery->info.charging_source = CHARGER_USB;
-		battery->cable_type = POWER_SUPPLY_TYPE_USB;
 		break;
 	case CHARGER_AC:
 		pr_info("cable AC");
 		battery->info.charging_source = CHARGER_AC;
-		battery->cable_type = POWER_SUPPLY_TYPE_MAINS;
 		break;
 	case CHARGER_DOCK:
 		pr_info("cable DOCK");
 		battery->info.charging_source = CHARGER_DOCK;
-		battery->cable_type = POWER_SUPPLY_TYPE_MAINS;
 		break;
 	case CHARGER_MISC:
 		pr_info("cable MISC");
 		battery->info.charging_source = CHARGER_AC;
-		battery->cable_type = POWER_SUPPLY_TYPE_MAINS;
 #if defined(CONFIG_MACH_P8LTE)  || defined(CONFIG_MACH_P8)
 		battery->info.charging_source = CHARGER_MISC;
 #endif
@@ -2228,24 +2205,21 @@ static void sec_bat_status_update(struct power_supply *bat_ps)
 				battery->pdata->get_input_current();
 
 	/* check fast or slow charge state */
-	if (charging_status == POWER_SUPPLY_STATUS_CHARGING) {
-		if (battery->info.charging_source == CHARGER_AC) {
-			battery->charge_type =
-				POWER_SUPPLY_CHARGE_TYPE_FAST;
-			battery->cable_type = POWER_SUPPLY_TYPE_MAINS;
-		} else if (battery->info.charging_source == CHARGER_MISC ||
-			battery->info.charging_source == CHARGER_DOCK) {
-			battery->charge_type =
-				POWER_SUPPLY_CHARGE_TYPE_FAST;
-			battery->cable_type = POWER_SUPPLY_TYPE_MAINS;
-		} else if (battery->info.charging_source == CHARGER_USB) {
+	if (charging_status == POWER_SUPPLY_STATUS_CHARGING &&
+			battery->info.aicl_current) {
+		if (battery->info.input_current > battery->info.aicl_current) {
 			battery->charge_type =
 				POWER_SUPPLY_CHARGE_TYPE_SLOW;
-			battery->cable_type = POWER_SUPPLY_TYPE_USB;
+			pr_info("[BATT] set slow charge state!##(%d) (%d)\n",
+				battery->info.input_current,
+				battery->info.aicl_current);
+		} else {
+			battery->charge_type =
+				POWER_SUPPLY_CHARGE_TYPE_FAST;
+			pr_info("[BATT] set fast charge state!##(%d) (%d)\n",
+				battery->info.input_current,
+				battery->info.aicl_current);
 		}
-
-		pr_info("[BATT] set charge state! charge(%d) cable(%d)\n",
-				battery->charge_type, battery->cable_type);
 	}
 #endif /* CONFIG_SMB347_CHARGER */
 
@@ -2795,7 +2769,7 @@ static int __devinit sec_bat_probe(struct platform_device *pdev)
 	defined(CONFIG_TARGET_LOCALE_USA))
 	battery->abs_timer_status = ABS_CHARGING_PROP_CHARGING;
 #endif
-	battery->cable_type = POWER_SUPPLY_TYPE_BATTERY;
+
 	/* Get initial cable status */
 	sec_get_cable_status(battery);
 	battery->previous_cable_status = battery->current_cable_status;

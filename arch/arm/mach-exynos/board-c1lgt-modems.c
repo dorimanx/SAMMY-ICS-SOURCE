@@ -339,17 +339,30 @@ static struct sromc_timing_cfg cmc_idpram_timing_cfg[] = {
 	},
 };
 
-static struct modemlink_dpram_data cmc_idpram = {
-	.type = CP_IDPRAM,
+static struct modemlink_dpram_control cmc_idpram_ctrl = {
+	.dp_type = CP_IDPRAM,
+	.dpram_irq_flags = (IRQF_NO_SUSPEND | IRQF_TRIGGER_RISING),
 	.setup_speed = setup_dpram_access_timing,
 };
 
 static struct resource umts_modem_res[] = {
+	[RES_CP_ACTIVE_IRQ_ID] = {
+		.name = STR_CP_ACTIVE_IRQ,
+		.start = LTE_ACTIVE_IRQ,
+		.end = LTE_ACTIVE_IRQ,
+		.flags = IORESOURCE_IRQ,
+	},
 	[RES_DPRAM_MEM_ID] = {
 		.name = STR_DPRAM_BASE,
 		.start = CMC_IDPRAM_BASE,
 		.end = CMC_IDPRAM_BASE + (CMC_IDPRAM_SIZE - 1),
 		.flags = IORESOURCE_MEM,
+	},
+	[RES_DPRAM_IRQ_ID] = {
+		.name = STR_DPRAM_IRQ,
+		.start = CMC_IDPRAM_INT_IRQ_01,
+		.end = CMC_IDPRAM_INT_IRQ_01,
+		.flags = IORESOURCE_IRQ,
 	},
 	[RES_DPRAM_SFR_ID] = {
 		.name = STR_DPRAM_SFR_BASE,
@@ -364,30 +377,23 @@ static struct modem_data umts_modem_data = {
 
 	.gpio_cp_on = CP_CMC221_PMIC_PWRON,
 	.gpio_cp_reset = CP_CMC221_CPU_RST,
-
-	.gpio_pda_active = GPIO_PDA_ACTIVE,
-
 	.gpio_phone_active = GPIO_LTE_ACTIVE,
-	.irq_phone_active = LTE_ACTIVE_IRQ,
+	.gpio_pda_active   = GPIO_PDA_ACTIVE,
 
-	.gpio_ipc_int2ap = GPIO_CMC_IDPRAM_INT_01,
-	.irq_ipc_int2ap = CMC_IDPRAM_INT_IRQ_01,
-	.irqf_ipc_int2ap = (IRQF_NO_SUSPEND | IRQF_TRIGGER_RISING),
-
-	.gpio_cp_wakeup = GPIO_CMC_IDPRAM_WAKEUP,
-	.gpio_cp_status = GPIO_CMC_IDPRAM_STATUS,
+	.gpio_dpram_int = GPIO_CMC_IDPRAM_INT_01,
+	.gpio_dpram_status = GPIO_CMC_IDPRAM_STATUS,
+	.gpio_dpram_wakeup = GPIO_CMC_IDPRAM_WAKEUP,
 
 	.gpio_slave_wakeup = GPIO_IPC_SLAVE_WAKEUP,
 	.gpio_host_active = GPIO_ACTIVE_STATE,
 	.gpio_host_wakeup = GPIO_IPC_HOST_WAKEUP,
-
-	.gpio_link_switch = GPIO_AP2CMC_INT2,
+	.gpio_dynamic_switching = GPIO_AP2CMC_INT2,
 
 	.modem_net = UMTS_NETWORK,
 	.modem_type = SEC_CMC221,
 	.link_types = LINKTYPE(LINKDEV_DPRAM) | LINKTYPE(LINKDEV_USB),
 	.link_name = "cmc221_idpram",
-	.dpram = &cmc_idpram,
+	.dpram_ctl = &cmc_idpram_ctrl,
 
 	.num_iodevs = ARRAY_SIZE(umts_io_devices),
 	.iodevs = umts_io_devices,
@@ -395,6 +401,7 @@ static struct modem_data umts_modem_data = {
 	.use_handover = true,
 
 	.ipc_version = SIPC_VER_50,
+	.use_mif_log = true,
 };
 
 static struct platform_device umts_modem = {
@@ -430,8 +437,10 @@ static void setup_umts_modem_env(void)
 		umts_modem_res[RES_DPRAM_SFR_ID].start = addr;
 		umts_modem_res[RES_DPRAM_SFR_ID].end = end;
 
-		umts_modem_data.gpio_ipc_int2ap = GPIO_CMC_IDPRAM_INT_00;
-		umts_modem_data.irq_ipc_int2ap = CMC_IDPRAM_INT_IRQ_00;
+		umts_modem_res[RES_DPRAM_IRQ_ID].start = CMC_IDPRAM_INT_IRQ_00;
+		umts_modem_res[RES_DPRAM_IRQ_ID].end = CMC_IDPRAM_INT_IRQ_00;
+
+		umts_modem_data.gpio_dpram_int = GPIO_CMC_IDPRAM_INT_00;
 	}
 #endif
 }
@@ -446,10 +455,11 @@ static void config_umts_modem_gpio(void)
 	unsigned gpio_active_state = umts_modem_data.gpio_host_active;
 	unsigned gpio_host_wakeup = umts_modem_data.gpio_host_wakeup;
 	unsigned gpio_slave_wakeup = umts_modem_data.gpio_slave_wakeup;
-	unsigned gpio_ipc_int2ap = umts_modem_data.gpio_ipc_int2ap;
-	unsigned gpio_cp_status = umts_modem_data.gpio_cp_status;
-	unsigned gpio_cp_wakeup = umts_modem_data.gpio_cp_wakeup;
-	unsigned gpio_link_switch = umts_modem_data.gpio_link_switch;
+	unsigned gpio_dpram_int = umts_modem_data.gpio_dpram_int;
+	unsigned gpio_dpram_status = umts_modem_data.gpio_dpram_status;
+	unsigned gpio_dpram_wakeup = umts_modem_data.gpio_dpram_wakeup;
+	unsigned gpio_dynamic_switching =
+			umts_modem_data.gpio_dynamic_switching;
 
 	if (gpio_cp_on) {
 		err = gpio_request(gpio_cp_on, "CMC_ON");
@@ -528,49 +538,50 @@ static void config_umts_modem_gpio(void)
 		}
 	}
 
-	if (gpio_ipc_int2ap) {
-		err = gpio_request(gpio_ipc_int2ap, "CMC_DPRAM_INT");
+	if (gpio_dpram_int) {
+		err = gpio_request(gpio_dpram_int, "CMC_DPRAM_INT");
 		if (err) {
 			mif_err("ERR: fail to request gpio %s\n",
 				"CMC_DPRAM_INT");
 		} else {
 			/* Configure as a wake-up source */
-			gpio_direction_input(gpio_ipc_int2ap);
-			s3c_gpio_setpull(gpio_ipc_int2ap, S3C_GPIO_PULL_NONE);
-			s3c_gpio_cfgpin(gpio_ipc_int2ap, S3C_GPIO_SFN(0xF));
+			gpio_direction_input(gpio_dpram_int);
+			s3c_gpio_setpull(gpio_dpram_int, S3C_GPIO_PULL_NONE);
+			s3c_gpio_cfgpin(gpio_dpram_int, S3C_GPIO_SFN(0xF));
 		}
 	}
 
-	if (gpio_cp_status) {
-		err = gpio_request(gpio_cp_status, "CMC_DPRAM_STATUS");
+	if (gpio_dpram_status) {
+		err = gpio_request(gpio_dpram_status, "CMC_DPRAM_STATUS");
 		if (err) {
 			mif_err("ERR: fail to request gpio %s\n",
 				"CMC_DPRAM_STATUS");
 		} else {
-			gpio_direction_input(gpio_cp_status);
-			s3c_gpio_setpull(gpio_cp_status, S3C_GPIO_PULL_NONE);
+			gpio_direction_input(gpio_dpram_status);
+			s3c_gpio_setpull(gpio_dpram_status, S3C_GPIO_PULL_NONE);
 		}
 	}
 
-	if (gpio_cp_wakeup) {
-		err = gpio_request(gpio_cp_wakeup, "CMC_DPRAM_WAKEUP");
+	if (gpio_dpram_wakeup) {
+		err = gpio_request(gpio_dpram_wakeup, "CMC_DPRAM_WAKEUP");
 		if (err) {
 			mif_err("ERR: fail to request gpio %s\n",
 				"CMC_DPRAM_WAKEUP");
 		} else {
-			gpio_direction_output(gpio_cp_wakeup, 1);
-			s3c_gpio_setpull(gpio_cp_wakeup, S3C_GPIO_PULL_NONE);
+			gpio_direction_output(gpio_dpram_wakeup, 1);
+			s3c_gpio_setpull(gpio_dpram_wakeup, S3C_GPIO_PULL_NONE);
 		}
 	}
 
-	if (gpio_link_switch) {
-		err = gpio_request(gpio_link_switch, "DYNAMIC_SWITCHING");
+	if (gpio_dynamic_switching) {
+		err = gpio_request(gpio_dynamic_switching, "DYNAMIC_SWITCHING");
 		if (err) {
 			mif_err("ERR: fail to request gpio %s\n",
 					"DYNAMIC_SWITCHING\n");
 		} else {
-			gpio_direction_input(gpio_link_switch);
-			s3c_gpio_setpull(gpio_link_switch, S3C_GPIO_PULL_DOWN);
+			gpio_direction_input(gpio_dynamic_switching);
+			s3c_gpio_setpull(gpio_dynamic_switching,
+					S3C_GPIO_PULL_DOWN);
 		}
 	}
 
@@ -766,44 +777,52 @@ static struct sromc_timing_cfg cbp_edpram_timing_cfg = {
 	.pmc  = 0x00 << 0,
 };
 
-static struct modemlink_dpram_data cbp_edpram = {
-	.type = EXT_DPRAM,
+static struct modemlink_dpram_control cbp_edpram_ctrl = {
+	.dp_type = EXT_DPRAM,
+	.dpram_irq_flags = (IRQF_NO_SUSPEND | IRQF_TRIGGER_FALLING),
 	.res_ack_wait_timeout = 100,
 };
 
 static struct resource cdma_modem_res[] = {
+	[RES_CP_ACTIVE_IRQ_ID] = {
+		.name = "cp_active_irq",
+		.start = CBP_PHONE_ACTIVE_IRQ,
+		.end = CBP_PHONE_ACTIVE_IRQ,
+		.flags = IORESOURCE_IRQ,
+	},
 	[RES_DPRAM_MEM_ID] = {
-		.name = STR_DPRAM_BASE,
+		.name = "dpram_base",
 		.start = CBP_EDPRAM_BASE,
 		.end = CBP_EDPRAM_BASE + (CBP_EDPRAM_SIZE - 1),
 		.flags = IORESOURCE_MEM,
+	},
+	[RES_DPRAM_IRQ_ID] = {
+		.name = "dpram_irq",
+		.start = CBP_DPRAM_INT_IRQ_01,
+		.end = CBP_DPRAM_INT_IRQ_01,
+		.flags = IORESOURCE_IRQ,
 	},
 };
 
 static struct modem_data cdma_modem_data = {
 	.name = "cbp7.2",
 
-	.gpio_cp_on = GPIO_CBP_PMIC_PWRON,
-	.gpio_cp_off = GPIO_CBP_PS_HOLD_OFF,
-	.gpio_cp_reset = GPIO_CBP_CP_RST,
-
-	.gpio_pda_active = GPIO_PDA_ACTIVE,
-
+	.gpio_cp_on        = GPIO_CBP_PMIC_PWRON,
+	.gpio_cp_off       = GPIO_CBP_PS_HOLD_OFF,
+	.gpio_cp_reset     = GPIO_CBP_CP_RST,
+	.gpio_pda_active   = GPIO_PDA_ACTIVE,
 	.gpio_phone_active = GPIO_CBP_PHONE_ACTIVE,
-	.irq_phone_active = CBP_PHONE_ACTIVE_IRQ,
 
-	.gpio_ipc_int2ap = GPIO_CBP_DPRAM_INT_01,
-	.irq_ipc_int2ap = CBP_DPRAM_INT_IRQ_01,
-	.irqf_ipc_int2ap = (IRQF_NO_SUSPEND | IRQF_TRIGGER_FALLING),
+	.gpio_dpram_int = GPIO_CBP_DPRAM_INT_01,
 
-	.modem_net = CDMA_NETWORK,
+	.modem_net  = CDMA_NETWORK,
 	.modem_type = VIA_CBP72,
 	.link_types = LINKTYPE(LINKDEV_DPRAM),
-	.link_name = "cbp72_edpram",
-	.dpram = &cbp_edpram,
+	.link_name  = "cbp72_edpram",
+	.dpram_ctl  = &cbp_edpram_ctrl,
 
 	.num_iodevs = ARRAY_SIZE(cdma_io_devices),
-	.iodevs = cdma_io_devices,
+	.iodevs     = cdma_io_devices,
 
 	.use_handover = true,
 
@@ -835,8 +854,10 @@ static void setup_cdma_modem_env(void)
 		cdma_modem_res[RES_DPRAM_MEM_ID].start = addr;
 		cdma_modem_res[RES_DPRAM_MEM_ID].end = end;
 
-		cdma_modem_data.gpio_ipc_int2ap = GPIO_CBP_DPRAM_INT_00;
-		cdma_modem_data.irq_ipc_int2ap = CBP_DPRAM_INT_IRQ_00;
+		cdma_modem_res[RES_DPRAM_IRQ_ID].start = CBP_DPRAM_INT_IRQ_00;
+		cdma_modem_res[RES_DPRAM_IRQ_ID].end = CBP_DPRAM_INT_IRQ_00;
+
+		cdma_modem_data.gpio_dpram_int = GPIO_CBP_DPRAM_INT_00;
 	}
 #endif
 }
@@ -850,7 +871,7 @@ static void config_cdma_modem_gpio(void)
 	unsigned gpio_cp_rst = cdma_modem_data.gpio_cp_reset;
 	unsigned gpio_pda_active = cdma_modem_data.gpio_pda_active;
 	unsigned gpio_phone_active = cdma_modem_data.gpio_phone_active;
-	unsigned gpio_ipc_int2ap = cdma_modem_data.gpio_ipc_int2ap;
+	unsigned gpio_dpram_int = cdma_modem_data.gpio_dpram_int;
 
 	pr_info("[MDM] <%s>\n", __func__);
 
@@ -916,15 +937,15 @@ static void config_cdma_modem_gpio(void)
 		}
 	}
 
-	if (gpio_ipc_int2ap) {
-		err = gpio_request(gpio_ipc_int2ap, "CBP_DPRAM_INT");
+	if (gpio_dpram_int) {
+		err = gpio_request(gpio_dpram_int, "CBP_DPRAM_INT");
 		if (err) {
 			pr_err("fail to request gpio %s\n", "CBP_DPRAM_INT");
 		} else {
 			/* Configure as a wake-up source */
-			gpio_direction_input(gpio_ipc_int2ap);
-			s3c_gpio_setpull(gpio_ipc_int2ap, S3C_GPIO_PULL_NONE);
-			s3c_gpio_cfgpin(gpio_ipc_int2ap, S3C_GPIO_SFN(0xF));
+			gpio_direction_input(gpio_dpram_int);
+			s3c_gpio_setpull(gpio_dpram_int, S3C_GPIO_PULL_NONE);
+			s3c_gpio_cfgpin(gpio_dpram_int, S3C_GPIO_SFN(0xF));
 		}
 	}
 

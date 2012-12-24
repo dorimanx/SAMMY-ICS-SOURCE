@@ -537,6 +537,14 @@ static int sec_bat_get_property(struct power_supply *ps,
 		break;
 #endif
 	case POWER_SUPPLY_PROP_CAPACITY:
+#ifdef CONFIG_TARGET_LOCALE_NA
+		if (info->charging_status != POWER_SUPPLY_STATUS_FULL
+		    && info->batt_soc == 100) {
+			val->intval = 99;
+			break;
+		}
+#endif				/*CONFIG_TARGET_LOCALE_NA */
+
 		if (info->charging_status == POWER_SUPPLY_STATUS_FULL) {
 			val->intval = 100;
 			break;

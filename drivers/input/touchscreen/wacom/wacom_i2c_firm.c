@@ -63,18 +63,12 @@ char Firmware_checksum[] = { 0x1F, 0x81, 0x72, 0xDC, 0x5E, };
 
 /*USA*/
 #elif defined(CONFIG_MACH_T0_USA_VZW) \
-	|| defined(CONFIG_MACH_T0_USA_SPR)
+	|| defined(CONFIG_MACH_T0_USA_SPR) \
+	|| defined(CONFIG_MACH_T0_USA_USCC)
 unsigned int Firmware_version_of_file = 0x602;
 unsigned char *firmware_name = "epen/W9001_B746VZW.bin";
 
 char Firmware_checksum[] = { 0x1F, 0x46, 0xB1, 0x68, 0x88, };
-
-/*USA*/
-#elif defined(CONFIG_MACH_T0_USA_USCC)
-unsigned int Firmware_version_of_file = 0x1004;
-unsigned char *firmware_name = "epen/W9001_B746USC.bin";
-
-char Firmware_checksum[] = { 0x1F, 0x85, 0x70, 0x07, 0xF9, };
 
 /*CHN*/
 #elif defined(CONFIG_MACH_T0_CHN_CTC)
@@ -93,14 +87,6 @@ char Firmware_checksum[] = { 0x1F, 0x78, 0xB1, 0xAB, 0x78, };
 const char B713X_checksum[] = { 0x1F, 0xB5, 0x84, 0x38, 0x34, };
 /*checksum for 0x16*/
 const char B660X_checksum[] = { 0x1F, 0x83, 0x88, 0xD4, 0x67, };
-#elif defined(CONFIG_MACH_KONA)
-const unsigned int Binary_nLength = 0xC15A;
-const unsigned char Mpu_type = 0x00;
-unsigned int Firmware_version_of_file = 0x501;
-unsigned char *firmware_name = "epen/W9002_B720.bin";
-
-char Firmware_checksum[] = { 0x1F, 0xFF, 0xFF, 0xFF, 0xFF, };
-
 #endif
 
 void wacom_i2c_set_firm_data(unsigned char *Binary_new)

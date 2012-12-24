@@ -48,11 +48,7 @@
 
 /*I2C address for digitizer and its boot loader*/
 #define WACOM_I2C_ADDR 0x56
-#ifdef CONFIG_EPEN_WACOM_G9PL
-#define WACOM_I2C_BOOT 0x09
-#else
 #define WACOM_I2C_BOOT 0x57
-#endif
 
 /*Information for input_dev*/
 #define EMR 0
@@ -84,11 +80,7 @@
 #define EPEN_DTYPE_B713 2
 #define EPEN_DTYPE_B746 3
 
-#define WACOM_I2C_MODE_BOOT 1
-#define WACOM_I2C_MODE_NORMAL 0
-
-#if defined(CONFIG_MACH_P4NOTE) \
-	|| defined(CONFIG_MACH_P4)
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_P4)
 #define WACOM_DVFS_LOCK_FREQ 800000
 #ifdef CONFIG_SEC_TOUCHSCREEN_DVFS_LOCK
 #define SEC_BUS_LOCK
@@ -281,21 +273,7 @@
 
 #endif
 
-#elif defined(CONFIG_MACH_KONA)
-#define WACOM_MAX_COORD_X 10764
-#define WACOM_MAX_COORD_Y 17222
-#define WACOM_MAX_PRESSURE 1023
 
-/* For Android origin */
-#define WACOM_POSX_MAX WACOM_MAX_COORD_Y
-#define WACOM_POSY_MAX WACOM_MAX_COORD_X
-
-#define COOR_WORK_AROUND
-
-#define WACOM_PEN_DETECT
-#define WACOM_HAVE_FWE_PIN
-
-#define WACOM_DVFS_LOCK_FREQ 800000
 #endif /*End of Model config*/
 
 #if !defined(WACOM_SLEEP_WITH_PEN_SLP)
@@ -332,9 +310,9 @@ static struct wacom_features wacom_feature_EMR = {
 	.y_max = 0x34F8,
 	.pressure_max = 0xFF,
 #else
-	.x_max = WACOM_MAX_COORD_X,
-	.y_max = WACOM_MAX_COORD_Y,
-	.pressure_max = WACOM_MAX_PRESSURE,
+	.x_max = 16128,
+	.y_max = 8448,
+	.pressure_max = 256,
 #endif
 	.comstat = COM_QUERY,
 	.data = {0, 0, 0, 0, 0, 0, 0},

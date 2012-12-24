@@ -495,19 +495,6 @@ void smb347_set_charging_current(int set_current)
 	pr_debug("%s: Set charging current as %dmA.\n", __func__, set_current);
 }
 
-void smb347_set_aicl_state(int state)
-{
-	struct smb347_chg_data *chg = smb347_chg;
-
-	if (state)
-		smb347_i2c_write(chg->client,
-			SMB347_VARIOUS_FUNCTIONS, 0xB7);
-	else
-		smb347_i2c_write(chg->client,
-			SMB347_VARIOUS_FUNCTIONS, 0xA7);
-	pr_info("%s : AICL STATE(%d)\n", __func__, state);
-}
-
 static int smb347_i2c_probe
 (struct i2c_client *client, const struct i2c_device_id *id)
 {
@@ -551,7 +538,6 @@ static int smb347_i2c_probe
 	chg->callbacks->get_charger_is_full = smb347_get_charger_is_full;
 	chg->callbacks->get_aicl_current = smb347_get_aicl_current;
 	chg->callbacks->get_input_current = smb347_get_input_current;
-	chg->callbacks->set_aicl_state = smb347_set_aicl_state;
 	if (chg->pdata && chg->pdata->register_callbacks)
 		chg->pdata->register_callbacks(chg->callbacks);
 

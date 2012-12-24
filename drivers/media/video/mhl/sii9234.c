@@ -2560,7 +2560,7 @@ static int sii9234_30pin_reg_init_for_9290(struct sii9234_data *sii9234)
 	ret = mhl_tx_write_reg(sii9234, 0xA1, 0xFC);
 	if (ret < 0)
 		return ret;
-#ifdef CONFIG_MACH_P4NOTE
+#ifdef	CONFIG_MACH_P4NOTE
 	ret = mhl_tx_write_reg(sii9234, 0xA3, 0xC0);	/*output swing level*/
 	if (ret < 0)
 		return ret;

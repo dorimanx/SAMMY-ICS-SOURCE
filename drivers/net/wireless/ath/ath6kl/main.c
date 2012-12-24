@@ -88,7 +88,6 @@ static void ath6kl_sta_cleanup(struct ath6kl *ar, u8 i)
 	spin_lock_bh(&sta->psq_lock);
 	skb_queue_purge(&sta->psq);
 	skb_queue_purge(&sta->apsdq);
-	sta->apsdq_depth = 0;
 
 	if (sta->mgmt_psq_len != 0) {
 		list_for_each_entry_safe(entry, tmp, &sta->mgmt_psq, list) {
@@ -759,7 +758,6 @@ static void ath6kl_update_target_stats(struct ath6kl_vif *vif, u8 *ptr, u32 len)
 		(struct wmi_target_stats *) ptr;
 	struct ath6kl *ar = vif->ar;
 	struct target_stats *stats = &vif->target_stats;
-	struct target_stats_dup *stats_dup = &vif->target_stats_dup;
 	struct tkip_ccmp_stats *ccmp_stats;
 	u8 ac;
 
@@ -770,7 +768,6 @@ static void ath6kl_update_target_stats(struct ath6kl_vif *vif, u8 *ptr, u32 len)
 
 	stats->tx_pkt += le32_to_cpu(tgt_stats->stats.tx.pkt);
 	stats->tx_byte += le32_to_cpu(tgt_stats->stats.tx.byte);
-	stats_dup->tx_byte += le32_to_cpu(tgt_stats->stats.tx.byte);
 	stats->tx_ucast_pkt += le32_to_cpu(tgt_stats->stats.tx.ucast_pkt);
 	stats->tx_ucast_byte += le32_to_cpu(tgt_stats->stats.tx.ucast_byte);
 	stats->tx_mcast_pkt += le32_to_cpu(tgt_stats->stats.tx.mcast_pkt);
@@ -779,37 +776,22 @@ static void ath6kl_update_target_stats(struct ath6kl_vif *vif, u8 *ptr, u32 len)
 	stats->tx_bcast_byte += le32_to_cpu(tgt_stats->stats.tx.bcast_byte);
 	stats->tx_rts_success_cnt +=
 		le32_to_cpu(tgt_stats->stats.tx.rts_success_cnt);
-	stats_dup->tx_rts_success_cnt +=
-		le32_to_cpu(tgt_stats->stats.tx.rts_success_cnt);
 
-	for (ac = 0; ac < WMM_NUM_AC; ac++) {
+	for (ac = 0; ac < WMM_NUM_AC; ac++)
 		stats->tx_pkt_per_ac[ac] +=
 			le32_to_cpu(tgt_stats->stats.tx.pkt_per_ac[ac]);
-		stats_dup->tx_pkt_per_ac[ac] +=
-			le32_to_cpu(tgt_stats->stats.tx.pkt_per_ac[ac]);
-		stats_dup->tx_retry_cnt[ac] +=
-			le32_to_cpu(tgt_stats->stats.tx.retry_cnt);
-		stats_dup->tx_fail_cnt[ac] +=
-			le32_to_cpu(tgt_stats->stats.tx.fail_cnt);
-		stats_dup->tx_mult_retry_cnt[ac] +=
-			le32_to_cpu(tgt_stats->stats.tx.mult_retry_cnt);
-	}
 
 	stats->tx_err += le32_to_cpu(tgt_stats->stats.tx.err);
-	stats_dup->tx_err += le32_to_cpu(tgt_stats->stats.tx.err);
 	stats->tx_fail_cnt += le32_to_cpu(tgt_stats->stats.tx.fail_cnt);
 	stats->tx_retry_cnt += le32_to_cpu(tgt_stats->stats.tx.retry_cnt);
 	stats->tx_mult_retry_cnt +=
 		le32_to_cpu(tgt_stats->stats.tx.mult_retry_cnt);
 	stats->tx_rts_fail_cnt +=
 		le32_to_cpu(tgt_stats->stats.tx.rts_fail_cnt);
-	stats_dup->tx_rts_fail_cnt +=
-		le32_to_cpu(tgt_stats->stats.tx.rts_fail_cnt);
 	stats->tx_ucast_rate =
 	    ath6kl_wmi_get_rate(a_sle32_to_cpu(tgt_stats->stats.tx.ucast_rate));
 
 	stats->rx_pkt += le32_to_cpu(tgt_stats->stats.rx.pkt);
-	stats_dup->rx_pkt += le32_to_cpu(tgt_stats->stats.rx.pkt);
 	stats->rx_byte += le32_to_cpu(tgt_stats->stats.rx.byte);
 	stats->rx_ucast_pkt += le32_to_cpu(tgt_stats->stats.rx.ucast_pkt);
 	stats->rx_ucast_byte += le32_to_cpu(tgt_stats->stats.rx.ucast_byte);
@@ -819,13 +801,11 @@ static void ath6kl_update_target_stats(struct ath6kl_vif *vif, u8 *ptr, u32 len)
 	stats->rx_bcast_byte += le32_to_cpu(tgt_stats->stats.rx.bcast_byte);
 	stats->rx_frgment_pkt += le32_to_cpu(tgt_stats->stats.rx.frgment_pkt);
 	stats->rx_err += le32_to_cpu(tgt_stats->stats.rx.err);
-	stats_dup->rx_err += le32_to_cpu(tgt_stats->stats.rx.err);
 	stats->rx_crc_err += le32_to_cpu(tgt_stats->stats.rx.crc_err);
 	stats->rx_key_cache_miss +=
 		le32_to_cpu(tgt_stats->stats.rx.key_cache_miss);
 	stats->rx_decrypt_err += le32_to_cpu(tgt_stats->stats.rx.decrypt_err);
 	stats->rx_dupl_frame += le32_to_cpu(tgt_stats->stats.rx.dupl_frame);
-	stats_dup->rx_dupl_frame += le32_to_cpu(tgt_stats->stats.rx.dupl_frame);
 	stats->rx_ucast_rate =
 	    ath6kl_wmi_get_rate(a_sle32_to_cpu(tgt_stats->stats.rx.ucast_rate));
 
@@ -1197,7 +1177,7 @@ static struct net_device_stats *ath6kl_get_stats(struct net_device *dev)
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39))
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
+#if 1 /*(LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))*/
 static int ath6kl_set_features(struct net_device *dev, netdev_features_t features)
 #else
 static int ath6kl_set_features(struct net_device *dev, u32 features)
@@ -1360,124 +1340,9 @@ out:
 	list_splice_tail(&mc_filter_new, &vif->mc_filter);
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
-static inline void ath6kl_pack_tlv(char *buf, char type, char size,
-				   char *val, int *tlen)
-{
-	if (*tlen > ATH6KL_PRI_IOCTL_REPLY_BUF_MAX)
-		return;
-
-	*buf++ = type;
-	*buf++ = size;
-	memcpy(buf, val, size);
-	*tlen += size + 2;
-}
-
-static int ath6kl_update_stats(struct ath6kl *ar, struct ath6kl_vif *vif,
-			       void __user *user_buf)
-{
-	struct target_stats_dup *stats;
-	char *buf;
-	int tlen = 0;
-	long left;
-	size_t ret;
-
-	if (down_interruptible(&ar->sem))
-		goto exit;
-
-	set_bit(STATS_UPDATE_PEND, &vif->flags);
-
-	if (ath6kl_wmi_get_stats_cmd(ar->wmi, 0)) {
-		up(&ar->sem);
-		goto exit;
-	}
-
-	left = wait_event_interruptible_timeout(ar->event_wq,
-						!test_bit(STATS_UPDATE_PEND,
-						&vif->flags), WMI_TIMEOUT);
-	up(&ar->sem);
-
-	if (left <= 0)
-		goto exit;
-
-	stats = &vif->target_stats_dup;
-
-	buf = kzalloc(ATH6KL_PRI_IOCTL_REPLY_BUF_MAX, GFP_KERNEL);
-	if (!buf)
-		goto exit;
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_RETRY_CNT,
-			sizeof(stats->tx_retry_cnt),
-			(char *)&stats->tx_retry_cnt, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_MUL_RETRY_CNT,
-			sizeof(stats->tx_mult_retry_cnt),
-			(char *)&stats->tx_mult_retry_cnt, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_TX_FRM_CNT,
-			sizeof(stats->tx_pkt_per_ac),
-			(char *)&stats->tx_pkt_per_ac, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_RX_FRM_CNT,
-			sizeof(stats->rx_pkt),
-			(char *)&stats->rx_pkt, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_FRM_DUP_CNT,
-			sizeof(stats->rx_dupl_frame),
-			(char *)&stats->rx_dupl_frame, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_FAIL_CNT,
-			sizeof(stats->tx_fail_cnt),
-			(char *)&stats->tx_fail_cnt, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_RTS_FAIL_CNT,
-			sizeof(stats->tx_rts_fail_cnt),
-			(char *)&stats->tx_rts_fail_cnt, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_ACK_FAIL_CNT,
-			sizeof(stats->tx_err),
-			(char *)&stats->tx_err, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_RTS_SUC_CNT,
-			sizeof(stats->tx_rts_success_cnt),
-			(char *)&stats->tx_rts_success_cnt, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_RX_DISCARD_CNT,
-			sizeof(stats->rx_err),
-			(char *)&stats->rx_err, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_RX_ERROR_CNT,
-			sizeof(stats->rx_err),
-			(char *)&stats->rx_err, &tlen);
-
-	ath6kl_pack_tlv(buf + tlen, WLAN_STATS_TX_BYTE_CNT,
-			sizeof(stats->tx_byte),
-			(char *)&stats->tx_byte, &tlen);
-
-	ret = copy_to_user(user_buf, buf, tlen);
-	if (ret)
-		ath6kl_err("failed to copy target stats to user buffer\n");
-
-	kfree(buf);
-exit:
-	return 0;
-}
-
+#if 1 /*(LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))*/
 static int ath6kl_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
-	struct ath6kl_vif *vif = netdev_priv(dev);
-	struct ath6kl *ar = vif->ar;
-
-	if (!ar || !vif)
-		goto exit;
-
-	if (!test_bit(WMI_READY, &vif->ar->flag) ||
-	    !test_bit(WLAN_ENABLED, &vif->flags))
-		goto exit;
-
-	if (cmd == ATH6KL_PRIV_GET_WLAN_STATS)
-		ath6kl_update_stats(ar, vif, rq->ifr_data);
-exit:
 	return 0;
 }
 #endif
@@ -1491,7 +1356,7 @@ static struct net_device_ops ath6kl_netdev_ops = {
 	.ndo_set_features       = ath6kl_set_features,
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39)) */
 	.ndo_set_rx_mode	= ath6kl_set_multicast_list,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
+#if 1 /*(LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))*/
 	.ndo_do_ioctl           = ath6kl_ioctl,
 #endif
 };

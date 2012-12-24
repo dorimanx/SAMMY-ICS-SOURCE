@@ -104,10 +104,6 @@
 #ifdef CONFIG_EXYNOS_C2C
 #include <mach/c2c.h>
 #endif
-#ifdef CONFIG_SEC_MODEM
-#include <linux/platform_data/modem.h>
-#endif
-
 #if defined(CONFIG_VIDEO_SAMSUNG_S5P_MFC) || defined(CONFIG_VIDEO_MFC5X)
 #include <plat/s5p-mfc.h>
 #endif
@@ -987,7 +983,7 @@ static void __init smdk4212_usbgadget_init(void)
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
 	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_BAFFIN) || \
 	defined(CONFIG_MACH_GC1_KOR_SKT) || defined(CONFIG_MACH_GC1_KOR_KT) || \
-	defined(CONFIG_MACH_GC1_KOR_LGT) || defined(CONFIG_MACH_GC1_USA_VZW)
+	defined(CONFIG_MACH_GC1_KOR_LGT)
 
 	pdata = s3c_device_usbgadget.dev.platform_data;
 	if (pdata) {
@@ -1118,7 +1114,7 @@ static bool is_muic_default_uart_path_cp(void)
 {
 #if defined(CONFIG_MACH_M0_CTC)
 	return false;
-#else
+#endif
 #ifdef CONFIG_MACH_M0
 	if (system_rev == 5)
 		return true;
@@ -1128,7 +1124,6 @@ static bool is_muic_default_uart_path_cp(void)
 		return true;
 #endif
 	return false;
-#endif
 }
 
 struct max77693_platform_data exynos4_max77693_info = {
@@ -1698,10 +1693,9 @@ static struct samsung_battery_platform_data samsung_battery_pdata = {
 
 #if defined(CONFIG_TARGET_LOCALE_KOR) || defined(CONFIG_MACH_M0_CTC) || \
 	defined(CONFIG_MACH_T0_USA_VZW) || defined(CONFIG_MACH_T0_USA_SPR) || \
-	defined(CONFIG_MACH_T0_USA_USCC) || defined(CONFIG_MACH_T0_CHN_CTC) || \
-	defined(CONFIG_MACH_GC1_USA_VZW)
+	defined(CONFIG_MACH_T0_USA_USCC) || defined(CONFIG_MACH_T0_CHN_CTC)
 #if defined(CONFIG_MACH_GC1)
-	/* GC1-KOR, GC1-VZW - 1650mAh Battery : ABS Timer Spec(6hr / 2hr) */
+	/* GC1-KOR - 1650mAh Battery : ABS Timer Spec(6hr / 2hr) */
 	.abstimer_charge_duration = 6 * 60 * 60,
 	.abstimer_charge_duration_wpc = 8 * 60 * 60,
 	.abstimer_recharge_duration = 2 * 60 * 60,
@@ -1802,11 +1796,6 @@ static struct samsung_battery_platform_data samsung_battery_pdata = {
 	.overheat_recovery_temp = 400,
 	.freeze_stop_temp = -49,
 	.freeze_recovery_temp = 15,
-#elif defined(CONFIG_MACH_M3_USA_TMO)
-	.overheat_stop_temp = 460,
-	.overheat_recovery_temp = 430,
-	.freeze_stop_temp = -50,
-	.freeze_recovery_temp = 0,
 #else
 	/* USA default */
 	.overheat_stop_temp = 450,
@@ -1880,15 +1869,6 @@ static struct samsung_battery_platform_data samsung_battery_pdata = {
 	.lpm_overheat_recovery_temp = 450,
 	.lpm_freeze_stop_temp = -50,
 	.lpm_freeze_recovery_temp = 0,
-#elif defined(CONFIG_MACH_M3_USA_TMO)
-	.event_overheat_stop_temp = 600,
-	.event_overheat_recovery_temp = 400,
-	.event_freeze_stop_temp = -50,
-	.event_freeze_recovery_temp = 0,
-	.lpm_overheat_stop_temp = 460,
-	.lpm_overheat_recovery_temp = 430,
-	.lpm_freeze_stop_temp = -40,
-	.lpm_freeze_recovery_temp = 10,
 #else
 	/* USA default */
 	.event_overheat_stop_temp = 600,
@@ -2098,6 +2078,8 @@ static struct platform_device midas_keypad = {
 	},
 };
 
+
+
 #ifdef CONFIG_VIDEO_FIMG2D
 static struct fimg2d_platdata fimg2d_data __initdata = {
 	.hw_ver = 0x41,
@@ -2109,44 +2091,21 @@ static struct fimg2d_platdata fimg2d_data __initdata = {
 #endif
 
 #ifdef CONFIG_EXYNOS_C2C
-#ifdef CONFIG_C2C_IPC_ONLY
-struct exynos_c2c_platdata smdk4412_c2c_pdata = {
-	.setup_gpio = NULL,
-	.shdmem_addr = C2C_SHAREDMEM_BASE,
-#if 0
-	.shdmem_size = C2C_MEMSIZE_4,
-#else
-	.shdmem_size = C2C_MEMSIZE_64,
-#endif
-	.ap_sscm_addr = NULL,
-	.cp_sscm_addr = NULL,
-	.rx_width = C2C_BUSWIDTH_8,
-	.tx_width = C2C_BUSWIDTH_8,
-	.clk_opp100 = 133,
-	.clk_opp50 = 66,
-	.clk_opp25 = 0,
-	.default_opp_mode = C2C_OPP100,
-	.get_c2c_state = NULL,
-	.c2c_sysreg = S5P_VA_CMU + 0x12000,
-};
-#else
-struct exynos_c2c_platdata smdk4412_c2c_pdata = {
-	.setup_gpio = NULL,
-	.shdmem_addr = C2C_SHAREDMEM_BASE,
-	.shdmem_size = C2C_MEMSIZE_64,
-	.ap_sscm_addr = NULL,
-	.cp_sscm_addr = NULL,
-	.rx_width = C2C_BUSWIDTH_16,
-	.tx_width = C2C_BUSWIDTH_16,
-	.clk_opp100 = 400,
-	.clk_opp50 = 266,
-	.clk_opp25 = 0,
-	.default_opp_mode = C2C_OPP50,
+struct exynos_c2c_platdata smdk4212_c2c_pdata = {
+	.setup_gpio	= NULL,
+	.shdmem_addr	= C2C_SHAREDMEM_BASE,
+	.shdmem_size	= C2C_MEMSIZE_64,
+	.ap_sscm_addr	= NULL,
+	.cp_sscm_addr	= NULL,
+	.rx_width	= C2C_BUSWIDTH_16,
+	.tx_width	= C2C_BUSWIDTH_16,
+	.clk_opp100	= 400,
+	.clk_opp50	= 266,
+	.clk_opp25	= 0,
+	.default_opp_mode	= C2C_OPP50,
 	.get_c2c_state	= NULL,
 };
-#endif /* CONFIG_C2C_IPC_ONLY */
-#endif /* CONFIG_EXYNOS_C2C */
-
+#endif
 /* BUSFREQ to control memory/bus */
 static struct device_domain busfreq;
 
@@ -2757,16 +2716,6 @@ early_param("fbmem", early_fbmem);
 static void __init exynos4_reserve_mem(void)
 {
 	static struct cma_region regions[] = {
-#ifdef CONFIG_EXYNOS_C2C
-		{
-			.name = "c2c_shdmem",
-			.size = C2C_SHAREDMEM_SIZE,
-			{
-				.alignment = C2C_SHAREDMEM_SIZE,
-			},
-			.start = C2C_SHAREDMEM_BASE
-		},
-#endif
 #ifdef CONFIG_VIDEO_EXYNOS_FIMC_IS
 		{
 			.name = "fimc_is",
@@ -2863,7 +2812,7 @@ static void __init exynos4_reserve_mem(void)
 			.name = "fimc1",
 			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMC1 * SZ_1K,
 #if defined(CONFIG_MACH_GC1)
-			.start = 0x5e800000,
+			.start = 0x5ec00000,
 #else
 			.start = 0x65c00000,
 #endif
@@ -2899,10 +2848,9 @@ static void __init exynos4_reserve_mem(void)
 			.size = 0
 		},
 	};
-
 #ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
 	static struct cma_region regions_secure[] = {
-#if !defined(CONFIG_DMA_CMA)
+#ifndef CONFIG_DMA_CMA
 #ifdef CONFIG_ION_EXYNOS_CONTIGHEAP_SIZE
 		{
 			.name	= "ion",
@@ -2919,7 +2867,7 @@ static void __init exynos4_reserve_mem(void)
 			.name = "sectbl",
 			.size = SZ_1M,
 		},
-#else /*defined(CONFIG_DMA_CMA)*/
+#else
 #if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_M0)
 #ifdef CONFIG_ION_EXYNOS_CONTIGHEAP_SIZE
 		{
@@ -2945,14 +2893,14 @@ static void __init exynos4_reserve_mem(void)
 		{
 			.name = "ion",
 			.size = CONFIG_ION_EXYNOS_CONTIGHEAP_SIZE * SZ_1K,
-			.start = 0x53300000,
+			.start = 0x53500000,
 		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC_SECURE
 		{
 			.name = "mfc-secure",
 			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC_SECURE * SZ_1K,
-			.start = 0x50200000,
+			.start = 0x50400000,
 		},
 #endif
 		{
@@ -3025,27 +2973,7 @@ static void __init exynos4_reserve_mem(void)
 
 	s5p_cma_region_reserve(regions, regions_secure, 0, map);
 
-	pr_err("[CMA] %s: regions\n", __func__);
-	for (i = 0; i < ARRAY_SIZE(regions); i++) {
-		if (regions[i].size == 0)
-			break;
-		pr_err("[CMA] %s: regions[%d] 0x%08X + 0x%07X (%s)\n",
-			__func__, i, regions[i].start, regions[i].size,
-			regions[i].name);
-	}
-
-#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
-	pr_err("[CMA] %s: regions_secure\n", __func__);
-	for (i = 0; i < ARRAY_SIZE(regions_secure); i++) {
-		if (regions_secure[i].size == 0)
-			break;
-		pr_err("[CMA] %s: regions_secure[%d] 0x%08X + 0x%07X (%s)\n",
-			__func__, i, regions_secure[i].start,
-			regions_secure[i].size, regions_secure[i].name);
-	}
-#endif
-
-	if (!fbmem_start || !fbmem_size)
+	if (!(fbmem_start && fbmem_size))
 		return;
 
 	for (i = 0; i < ARRAY_SIZE(regions); i++) {
@@ -3567,9 +3495,8 @@ static void __init midas_machine_init(void)
 #ifdef CONFIG_VIDEO_FIMG2D
 	s5p_fimg2d_set_platdata(&fimg2d_data);
 #endif
-
 #ifdef CONFIG_EXYNOS_C2C
-	exynos_c2c_set_platdata(&smdk4412_c2c_pdata);
+	exynos_c2c_set_platdata(&smdk4212_c2c_pdata);
 #endif
 
 	brcm_wlan_init();
@@ -3838,6 +3765,24 @@ static void __init midas_machine_init(void)
 #endif
 }
 
+#ifdef CONFIG_EXYNOS_C2C
+static void __init exynos_c2c_reserve(void)
+{
+	static struct cma_region region = {
+			.name = "c2c_shdmem",
+			.size = 64 * SZ_1M,
+			{ .alignment	= 64 * SZ_1M },
+			.start = C2C_SHAREDMEM_BASE
+	};
+
+	BUG_ON(cma_early_region_register(&region));
+	BUG_ON(cma_early_region_reserve(&region));
+
+	pr_info("%s %10s %8x %8x\n", __func__,
+		region.name, region.start, region.size);
+}
+#endif
+
 #ifdef CONFIG_DMA_CMA
 static void __init exynos4_reserve(void)
 {
@@ -3873,7 +3818,9 @@ MACHINE_START(SMDK4412, "SMDK4x12")
 	.map_io		= midas_map_io,
 	.init_machine	= midas_machine_init,
 	.timer		= &exynos4_timer,
-#if defined(CONFIG_DMA_CMA)
+#if defined(CONFIG_EXYNOS_C2C)
+	.reserve	= &exynos_c2c_reserve,
+#elif defined(CONFIG_DMA_CMA)
 	.reserve	= &exynos4_reserve,
 #endif
 	.init_early	= &exynos_init_reserve,
@@ -3885,7 +3832,9 @@ MACHINE_START(SMDK4212, "SMDK4x12")
 	.map_io		= midas_map_io,
 	.init_machine	= midas_machine_init,
 	.timer		= &exynos4_timer,
-#if defined(CONFIG_DMA_CMA)
+#if defined(CONFIG_EXYNOS_C2C)
+	.reserve	= &exynos_c2c_reserve,
+#elif defined(CONFIG_DMA_CMA)
 	.reserve	= &exynos4_reserve,
 #endif
 	.init_early	= &exynos_init_reserve,

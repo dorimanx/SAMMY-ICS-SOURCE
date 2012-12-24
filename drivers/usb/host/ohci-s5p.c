@@ -479,9 +479,6 @@ static void ohci_hcd_s5p_drv_shutdown(struct platform_device *pdev)
 
 	if (hcd->driver->shutdown)
 		hcd->driver->shutdown(hcd);
-
-	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-
 }
 
 static const struct dev_pm_ops ohci_s5p_pm_ops = {

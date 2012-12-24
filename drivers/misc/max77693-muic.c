@@ -2726,7 +2726,6 @@ static int max77693_muic_handle_detach(struct max77693_muic_info *info, int irq)
 	max77693_muic_clear_cddelay(info);
 #endif /* CONFIG_MUIC_MAX77693_SUPPORT_SMART_DOCK */
 
-	mdata->jig_state(false);
 	if (info->cable_type == CABLE_TYPE_NONE_MUIC) {
 		dev_info(info->dev, "%s: duplicated(NONE)\n", __func__);
 		return 0;

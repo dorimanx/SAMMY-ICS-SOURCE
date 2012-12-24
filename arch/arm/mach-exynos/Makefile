@@ -95,9 +95,6 @@ obj-$(CONFIG_MACH_SMDK4X12)		+= mach-smdk4x12.o
 ifeq ($(CONFIG_MACH_P4NOTE),y)
 obj-$(CONFIG_MACH_MIDAS)		+= mach-p4notepq.o px-switch.o p4note-jack.o
 else
-ifeq ($(CONFIG_MACH_KONA),y)
-obj-$(CONFIG_MACH_MIDAS)               += mach-kona.o px-switch.o kona-jack.o
-else
 ifeq ($(CONFIG_MACH_IRON),y)
 obj-$(CONFIG_MACH_MIDAS)		+= board-grande.o grande-jack.o
 else
@@ -105,7 +102,6 @@ ifeq ($(CONFIG_MACH_GRANDE),y)
 obj-$(CONFIG_MACH_MIDAS)		+= board-grande.o grande-jack.o
 else
 obj-$(CONFIG_MACH_MIDAS)		+= mach-midas.o
-endif
 endif
 endif
 endif
@@ -128,7 +124,6 @@ obj-$(CONFIG_MACH_SMDK5250)		+= board-smdk5250-input.o
 obj-$(CONFIG_MACH_SMDK5250)		+= board-smdk5250-spi.o
 
 obj-$(CONFIG_MACH_P4NOTE)		+= p4-input.o
-obj-$(CONFIG_MACH_KONA)			+= kona-input.o
 
 ifeq ($(CONFIG_MACH_GRANDE),y)
 obj-$(CONFIG_MIDAS_COMMON)		+= sec-common.o board-gps-bcm475x.o \
@@ -168,15 +163,6 @@ obj-$(CONFIG_MIDAS_COMMON)		+= sec-common.o\
 obj-$(CONFIG_SEC_MODEM)			+= board-gps-bcm475x.o
 obj-$(CONFIG_GPS_BRCM_475X)		+= board-gps-bcm475x.o
 else
-ifeq ($(CONFIG_MACH_KONA),y)
-obj-$(CONFIG_MIDAS_COMMON)		+= sec-common.o\
-					   midas-tsp.o board-midas-wlan.o \
-					   midas-camera.o midas-thermistor.o \
-					   midas-mhl.o midas-lcd.o midas-sound.o \
-					   midas-wacom.o
-obj-$(CONFIG_SEC_MODEM)			+= board-gps-bcm475x.o
-obj-$(CONFIG_GPS_BRCM_475X)		+= board-gps-bcm475x.o
-else
 ifeq ($(CONFIG_MACH_SLP_T0_LTE),y)
 obj-$(CONFIG_MIDAS_COMMON)		+= sec-common.o \
 					   board-midas-wlan.o \
@@ -200,11 +186,9 @@ endif
 endif
 endif
 endif
-endif
 obj-$(CONFIG_IRON_BD)			+= board-iron-gpio.o board-grande-power.o
 obj-$(CONFIG_GRANDE_BD)			+= board-grande-gpio.o board-grande-power.o
 obj-$(CONFIG_P4NOTE_00_BD)		+= p4note-gpio.o p4note-power.o
-obj-$(CONFIG_KONA_00_BD)		+= kona-gpio.o kona-power.o
 obj-$(CONFIG_GC1_00_BD)			+= gc1-gpio.o gc1-power.o gc1-jack.o
 obj-$(CONFIG_MACH_T0)			+= t0-gpio.o t0-power.o
 obj-$(CONFIG_MACH_BAFFIN)			+= baffin-gpio.o baffin-power.o
@@ -303,14 +287,15 @@ obj-$(CONFIG_SEC_MODEM_M0_CTC)		+= board-m0ctc-modems.o
 obj-$(CONFIG_SEC_MODEM_T0_CU_DUOS)	+= board-m0-modems.o board-t0cu-duos-modems.o
 obj-$(CONFIG_SEC_MODEM_T0_OPEN_DUOS)      += board-m0-modems.o board-t0cu-duos-modems.o
 obj-$(CONFIG_SEC_MODEM_IRON)		+= board-iron-modems.o
+#obj-$(CONFIG_SEC_MODEM_M1)		+= board-m1-modems.o
 obj-$(CONFIG_SEC_MODEM_GAIA)		+= board-gaia-modems.o
+obj-$(CONFIG_SEC_MODEM_M1)		+= board-c1-modems.o
 obj-$(CONFIG_SEC_MODEM_C1)		+= board-c1-modems.o
 obj-$(CONFIG_SEC_MODEM_C1_LGT)		+= board-c1lgt-modems.o
 obj-$(CONFIG_SEC_MODEM_U1)		+= board-u1-modems.o
 obj-$(CONFIG_SEC_MODEM_U1_SPR)		+= board-u1-spr-modems.o
 obj-$(CONFIG_SEC_MODEM_U1_LGT)		+= board-u1-lgt-modems.o
 obj-$(CONFIG_SEC_MODEM_P8LTE)		+= board-p8ltevzw-modems.o
-obj-$(CONFIG_SEC_MODEM_GODIVA2)		+= board-godiva2-modems.o
 obj-$(CONFIG_SEC_DEBUG)			+= sec_debug.o sec_getlog.o sec_gaf.o
 obj-$(CONFIG_SEC_WATCHDOG_RESET)	+= sec_watchdog.o
 obj-$(CONFIG_SEC_LOG)			+= sec_log.o

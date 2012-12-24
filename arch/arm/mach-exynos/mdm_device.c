@@ -108,7 +108,7 @@ struct platform_device mdm_pm_device = {
 
 static struct mdm_platform_data mdm_platform_data = {
 	.mdm_version = "3.0",
-	.ramdump_delay_ms = 3000,
+	.ramdump_delay_ms = 2000,
 	.early_power_on = 1,
 	.sfr_query = 0,
 	.vddmin_resource = NULL,

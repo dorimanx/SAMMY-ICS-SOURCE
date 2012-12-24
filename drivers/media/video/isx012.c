@@ -2123,11 +2123,11 @@ static int isx012_do_af(struct v4l2_subdev *sd, u32 touch)
 			break;
 
 		af_dbg("AF state= %d(0x%X)\n", read_value, read_value);
-		msleep_debug(10, false);
+		msleep_debug(30, false);
 	}
 
 	if (unlikely(count >= AF_SEARCH_COUNT)) {
-		cam_warn("warning, AF check timeout. val=0x%X\n\n", read_value);
+		cam_warn("warning, AF check failed. val=0x%X\n\n", read_value);
 		isx012_writeb(sd, REG_INTCLR, 0x10);
 		goto check_fail;
 	}
@@ -3988,8 +3988,8 @@ static int is_sysdev(struct device *dev, void *str)
 	return !strcmp(dev_name(dev), (char *)str) ? 1 : 0;
 }
 
-static ssize_t cam_loglevel_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
+ssize_t cam_loglevel_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
 {
 	char temp_buf[60] = {0,};
 
@@ -4015,9 +4015,8 @@ static ssize_t cam_loglevel_show(struct device *dev,
 	return strlen(buf);
 }
 
-static ssize_t cam_loglevel_store(struct device *dev,
-			struct device_attribute *attr,
-			const char *buf, size_t count)
+ssize_t cam_loglevel_store(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
 {
 	printk(KERN_DEBUG "CAM buf=%s, count=%d\n", buf, count);
 

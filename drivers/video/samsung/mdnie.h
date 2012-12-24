@@ -81,12 +81,12 @@ enum NEGATIVE {
 	NEGATIVE_MAX,
 };
 
-struct mdnie_tuning_info {
+struct mdnie_tunning_info {
 	char *name;
 	const unsigned short *seq;
 };
 
-struct mdnie_tuning_info_cabc {
+struct mdnie_tunning_info_cabc {
 	char *name;
 	const unsigned short *seq;
 	unsigned int idx_lut;
@@ -110,7 +110,7 @@ struct mdnie_info {
 	enum TONE tone;
 	enum OUTDOOR outdoor;
 	enum CABC cabc;
-	unsigned int tuning;
+	unsigned int tunning;
 	unsigned int negative;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend    early_suspend;
@@ -123,7 +123,7 @@ int mdnie_send_sequence(struct mdnie_info *mdnie, const unsigned short *seq);
 #if defined(CONFIG_FB_MDNIE_PWM)
 extern void set_mdnie_pwm_value(struct mdnie_info *mdnie, int value);
 #endif
-extern int mdnie_txtbuf_to_parsing(char const *pFilepath, u16 *buf, u16 size);
+extern int mdnie_txtbuf_to_parsing(char const *pFilepath);
 
 extern void check_lcd_type(void);
 struct mdnie_backlight_value {

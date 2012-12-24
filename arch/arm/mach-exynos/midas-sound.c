@@ -217,7 +217,7 @@ static struct wm8994_drc_cfg drc_value[] = {
 		.regs[4] = 0x0000,
 	},
 #endif
-#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_KONA)
+#if defined(CONFIG_MACH_P4NOTE)
 {
 		.name = "cam rec DRC",
 		.regs[0] = 0x019B,
@@ -287,8 +287,7 @@ static struct wm8994_pdata wm1811_pdata = {
 	defined(CONFIG_MACH_C1_KOR_KT) || defined(CONFIG_MACH_C1_KOR_LGT) || \
 	defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_GC1) || \
 	defined(CONFIG_MACH_C1_USA_ATT) || defined(CONFIG_MACH_T0) || \
-	defined(CONFIG_MACH_M3) || defined(CONFIG_MACH_BAFFIN) || \
-	defined(CONFIG_MACH_KONA)
+	defined(CONFIG_MACH_M3) || defined(CONFIG_MACH_BAFFIN)
 	.lineout2fb = 0,
 #else
 	.lineout2fb = 1,
@@ -480,7 +479,7 @@ void __init midas_sound_init(void)
 	i2c_register_board_info(I2C_NUM_CODEC, i2c_wm1811,
 					ARRAY_SIZE(i2c_wm1811));
 #else /* for CONFIG_ARCH_EXYNOS4 */
-#if defined(CONFIG_MACH_P4NOTE)
+#ifdef CONFIG_MACH_P4NOTE
 	i2c_wm1811[0].irq = 0;
 	SET_PLATDATA_CODEC(NULL);
 	i2c_register_board_info(I2C_NUM_CODEC, i2c_wm1811,
@@ -500,7 +499,7 @@ void __init midas_sound_init(void)
 		i2c_register_board_info(I2C_NUM_CODEC, i2c_wm1811,
 						ARRAY_SIZE(i2c_wm1811));
 #else
-	if (system_rev != 3) {
+	if (system_rev != 3 && system_rev >= 0) {
 		SET_PLATDATA_CODEC(NULL);
 		i2c_register_board_info(I2C_NUM_CODEC, i2c_wm1811,
 						ARRAY_SIZE(i2c_wm1811));

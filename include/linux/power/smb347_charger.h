@@ -26,7 +26,6 @@ struct smb_charger_callbacks {
 	int (*get_charger_is_full) (void);
 	int (*get_aicl_current)(void);
 	int (*get_input_current)(void);
-	void (*set_aicl_state)(int);
 };
 
 struct smb_charger_data {

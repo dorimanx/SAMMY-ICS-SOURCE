@@ -847,12 +847,6 @@ static int sec_bat_get_input_current(void)
 
 }
 
-static void sec_bat_set_aicl_state(int state)
-{
-	if (smb_callbacks && smb_callbacks->set_aicl_state)
-		smb_callbacks->set_aicl_state(state);
-}
-
 #endif
 
 static int check_bootmode(void)
@@ -1337,32 +1331,31 @@ static struct sec_battery_platform_data sec_battery_platform = {
 	.get_charger_is_full = sec_bat_get_charger_is_full,
 	.get_aicl_current = sec_bat_get_aicl_current,
 	.get_input_current = sec_bat_get_input_current,
-	.set_aicl_state = sec_bat_set_aicl_state,
 #endif
 	.init_charger_gpio = sec_bat_gpio_init,
 	.inform_charger_connection = sec_charger_cb,
 
 #if defined(CONFIG_TARGET_LOCALE_USA)
 #if defined(CONFIG_MACH_P4NOTELTE_USA_SPR)
-	.temp_event_threshold = 62000,		/* 62c */
-	.temp_high_threshold = 48000,		/* 48c */
-	.temp_high_recovery = 43200,		/* 43.2c */
+	.temp_event_threshold = 70000,		/* 62c */
+	.temp_high_threshold = 48000,		/* 45c */
+	.temp_high_recovery = 43200,		/* 42c */
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 48000,	/* 48c */
-	.temp_lpm_high_recovery = 43500,	/* 43.5c */
-	.temp_lpm_low_recovery = -2000,	/* -2c */
-	.temp_lpm_low_threshold = -3500,	/* -3.5c */
+	.temp_lpm_high_threshold = 48000,	/* 45c */
+	.temp_lpm_high_recovery = 43500,	/* 42c */
+	.temp_lpm_low_recovery = 0,		/* 0c */
+	.temp_lpm_low_threshold = -3700,	/* -5c */
 #elif defined(CONFIG_MACH_P4NOTELTE_USA_VZW)
 	.temp_event_threshold = 62000,		/* 62c */
-	.temp_high_threshold = 47000,		/* 45c */
-	.temp_high_recovery = 44000,		/* 42c */
+	.temp_high_threshold = 45000,		/* 45c */
+	.temp_high_recovery = 42000,		/* 42c */
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 48000,	/* 48c */
-	.temp_lpm_high_recovery = 44000,	/* 44c */
+	.temp_lpm_high_threshold = 45000,	/* 45c */
+	.temp_lpm_high_recovery = 42000,	/* 42c */
 	.temp_lpm_low_recovery = 0,		/* 0c */
 	.temp_lpm_low_threshold = -5000,	/* -5c */
 #else
@@ -1372,8 +1365,8 @@ static struct sec_battery_platform_data sec_battery_platform = {
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 45000,	/* 62c */
-	.temp_lpm_high_recovery = 42000,	/* 42c */
+	.temp_lpm_high_threshold = 61000,	/* 62c */
+	.temp_lpm_high_recovery = 43000,	/* 42c */
 	.temp_lpm_low_recovery = 0,		/* 0c */
 	.temp_lpm_low_threshold = -5000,	/* -5c */
 #endif
@@ -1559,14 +1552,28 @@ static int noti_sec_univ_kbd_dock(unsigned int code)
 static void check_uart_path(bool en)
 {
 	int gpio_uart_sel;
+#ifdef CONFIG_MACH_P8LTE
+	int gpio_uart_sel2;
+
+	gpio_uart_sel = GPIO_UART_SEL1;
+	gpio_uart_sel2 = GPIO_UART_SEL2;
+	if (en)
+		gpio_direction_output(gpio_uart_sel2, 1);
+	else
+		gpio_direction_output(gpio_uart_sel2, 0);
+	printk(KERN_DEBUG "[Keyboard] uart_sel2 : %d\n",
+		gpio_get_value(gpio_uart_sel2));
+#else
 #if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
 	int gpio_uart_sel2;
-#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
-
 	gpio_uart_sel = GPIO_UART_SEL;
-#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
 	gpio_uart_sel2 = GPIO_UART_SEL2;
+#else
+	gpio_uart_sel = GPIO_UART_SEL;
+#endif
+#endif
 
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
 	if (en) {
 		gpio_direction_output(gpio_uart_sel, 1);
 		gpio_direction_output(gpio_uart_sel2, 1);
@@ -1576,7 +1583,7 @@ static void check_uart_path(bool en)
 		gpio_direction_output(gpio_uart_sel2, 0);
 		printk(KERN_DEBUG "[Keyboard] uart_sel : 0, 0\n");
 	}
-#else /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH != 2) */
+#else
 	if (en)
 		gpio_direction_output(gpio_uart_sel, 1);
 	else
@@ -1584,7 +1591,7 @@ static void check_uart_path(bool en)
 
 	printk(KERN_DEBUG "[Keyboard] uart_sel : %d\n",
 		gpio_get_value(gpio_uart_sel));
-#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+#endif
 }
 
 static void sec_30pin_register_cb(struct sec_30pin_callbacks *cb)

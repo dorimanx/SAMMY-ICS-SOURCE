@@ -323,9 +323,7 @@ static int battery_get_curr_avg(struct battery_info *info)
 	if ((info->battery_soc <= PWROFF_SOC) &&
 		(info->battery_vcell < info->pdata->voltage_min) &&
 		(info->battery_v_diff < 0) &&
-		((info->input_current < info->pdata->chg_curr_ta) &&
-		(info->input_current < info->pdata->in_curr_limit)) &&
-		(info->monitor_count >= 5)) {
+		(info->input_current < info->pdata->chg_curr_ta)) {
 		pr_info("%s: soc(%d), vol(%d < %d), diff(%d), in_curr(%d)\n",
 					__func__, info->battery_soc,
 					(info->battery_vcell / 1000),
@@ -2160,9 +2158,6 @@ static int samsung_usb_get_property(struct power_supply *ps,
 	if (psp != POWER_SUPPLY_PROP_ONLINE)
 		return -EINVAL;
 
-	/* re-update indicator icon */
-	battery_indicator_icon(info);
-
 	/* Set enable=1 only if the USB charger is connected */
 	val->intval = ((info->charge_virt_state !=
 				POWER_SUPPLY_STATUS_DISCHARGING) &&
@@ -2183,9 +2178,6 @@ static int samsung_ac_get_property(struct power_supply *ps,
 
 	if (psp != POWER_SUPPLY_PROP_ONLINE)
 		return -EINVAL;
-
-	/* re-update indicator icon */
-	battery_indicator_icon(info);
 
 	/* Set enable=1 only if the AC charger is connected */
 	val->intval = ((info->charge_virt_state !=

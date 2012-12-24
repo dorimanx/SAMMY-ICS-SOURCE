@@ -123,9 +123,6 @@ struct wmi {
 
 	u8 *last_mgmt_tx_frame;
 	size_t last_mgmt_tx_frame_len;
-#ifdef SS_3RD_INTF
-	bool last_mgmt_tx_p2p_iface;
-#endif
 	u8 saved_pwr_mode;
 };
 

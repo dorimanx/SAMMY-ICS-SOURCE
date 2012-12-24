@@ -185,7 +185,8 @@ struct cyttsp4_core_data {
 	atomic_t ignore_irq;
 	bool irq_enabled;
 	struct cyttsp4_device *loader;
-	cyttsp4_loader_func loader_func;
+	int (*load_func)(struct cyttsp4_device *ttsp,
+		struct cyttsp4_touch_firmware *fw);
 #ifdef VERBOSE_DEBUG
 	u8 pr_buf[CY_MAX_PRBUF_SIZE];
 #endif
@@ -1629,7 +1630,8 @@ static void run_delta_read(void *device_data)
 static void fw_update(void *device_data)
 {
 	struct cyttsp4_core_data *cd = (struct cyttsp4_core_data *)device_data;
-	cyttsp4_loader_func loader_func;
+	int (*load_func)(struct cyttsp4_device *ttsp,
+		struct cyttsp4_touch_firmware *fw);
 	struct cyttsp4_device *loader;
 	struct cyttsp4_touch_firmware *fw;
 
@@ -1639,16 +1641,16 @@ static void fw_update(void *device_data)
 
 	mutex_lock(&cd->system_lock);
 	loader = cd->loader;
-	loader_func = cd->loader_func;
+	load_func = cd->load_func;
 	fw = cd->pdata->fw;
 	mutex_unlock(&cd->system_lock);
 
-	if (!loader || !loader_func)
+	if (!loader || !load_func)
 		dev_err(cd->dev, "%s: No loader found for core.\n", __func__);
 	else if (!fw)
 		dev_err(cd->dev, "%s: No built-in fw found.\n", __func__);
 	else
-		loader_func(loader, fw);
+		load_func(loader, fw);
 
 	cd->cmd_state = 2;
 }
@@ -3043,13 +3045,13 @@ static int cyttsp4_wait_bl_heartbeat(struct cyttsp4_core_data *cd)
 	return rc;
 }
 
-static int cyttsp4_wait_mode_change(struct cyttsp4_core_data *cd, int mode)
+static int cyttsp4_wait_sysinfo_mode(struct cyttsp4_core_data *cd)
 {
 	long t;
 
 	dev_vdbg(cd->dev, "%s: wait sysinfo...\n", __func__);
 
-	t = wait_event_timeout(cd->wait_q, cd->mode == mode,
+	t = wait_event_timeout(cd->wait_q, cd->mode == CY_MODE_SYSINFO,
 			msecs_to_jiffies(CY_CORE_MODE_CHANGE_TIMEOUT));
 	if (IS_TMO(t)) {
 		dev_err(cd->dev, "%s: tmo waiting exit bl cd->mode=%d\n",
@@ -3068,11 +3070,11 @@ static int cyttsp4_reset_and_wait(struct cyttsp4_core_data *cd)
 	int rc;
 
 	/* reset hardware */
-	mutex_lock(&cd->system_lock);
+	/*mutex_lock(&cd->system_lock); */
 	dev_dbg(cd->dev, "%s: reset hw...\n", __func__);
 	rc = cyttsp4_hw_reset(cd);
 	cd->mode = CY_MODE_UNKNOWN;
-	mutex_unlock(&cd->system_lock);
+	/* mutex_unlock(&cd->system_lock);*/
 	if (rc < 0) {
 		dev_err(cd->dev, "%s: %s adap='%s' r=%d\n", __func__,
 			"Fail hw reset", cd->core->adap->id, rc);
@@ -3244,7 +3246,8 @@ static int cyttsp4_request_toggle_lowpower_(struct cyttsp4_device *ttsp,
 }
 
 static int cyttsp4_set_loader_(struct cyttsp4_device *ttsp,
-		cyttsp4_loader_func func)
+		int (*load_func)(struct cyttsp4_device *ttsp,
+		struct cyttsp4_touch_firmware *fw))
 {
 	struct cyttsp4_core *core = ttsp->core;
 	struct cyttsp4_core_data *cd = dev_get_drvdata(&core->dev);
@@ -3252,13 +3255,13 @@ static int cyttsp4_set_loader_(struct cyttsp4_device *ttsp,
 
 	dev_vdbg(cd->dev, "%s: enter...\n", __func__);
 
-	if (!ttsp || !func)
+	if (!ttsp || !load_func)
 		return -EINVAL;
 
 	mutex_lock(&cd->system_lock);
 	if (!cd->loader) {
 		cd->loader = ttsp;
-		cd->loader_func = func;
+		cd->load_func = load_func;
 	} else
 		rc = -EBUSY;
 	mutex_unlock(&cd->system_lock);
@@ -3275,9 +3278,10 @@ static int cyttsp4_unset_loader_(struct cyttsp4_device *ttsp)
 	dev_vdbg(cd->dev, "%s: enter...\n", __func__);
 
 	mutex_lock(&cd->system_lock);
-	if (cd->loader == ttsp) {
+/*	if (!cd->loader == ttsp) {*/
+	if (cd->loader != ttsp) {
 		cd->loader = NULL;
-		cd->loader_func = NULL;
+		cd->load_func = NULL;
 	} else
 		rc = -EINVAL;
 	mutex_unlock(&cd->system_lock);
@@ -3523,9 +3527,7 @@ static int cyttsp4_core_wake_(struct cyttsp4_core_data *cd)
 {
 	struct device *dev = cd->dev;
 	int mode;
-	u8 host_mode;
 	int rc;
-	bool sysinfo_ready;
 	int wd_state = 0;
 
 	dev_vdbg(dev, "%s: enter...\n", __func__);
@@ -3541,7 +3543,6 @@ static int cyttsp4_core_wake_(struct cyttsp4_core_data *cd)
 	/* Get the last active mode and set the mode to unknown*/
 	mode = cd->mode;
 	cd->mode = CY_MODE_UNKNOWN;
-	sysinfo_ready = cd->sysinfo.ready;
 	mutex_unlock(&cd->system_lock);
 
 	if (cd->pdata->led_power) {
@@ -3589,7 +3590,7 @@ static int cyttsp4_core_wake_(struct cyttsp4_core_data *cd)
 		wd_state--;
 	}
 
-	rc = cyttsp4_wait_mode_change(cd, CY_MODE_SYSINFO);
+	rc = cyttsp4_wait_sysinfo_mode(cd);
 	if (rc) {
 		dev_err(dev, "%s: Error on switching to sysinfo mode r=%d\n",
 				__func__, rc);
@@ -3597,31 +3598,21 @@ static int cyttsp4_core_wake_(struct cyttsp4_core_data *cd)
 	}
 
 	/* read sysinfo data */
-	if (!sysinfo_ready) {
-		dev_vdbg(dev, "%s: get sysinfo regs..\n", __func__);
-		rc = cyttsp4_get_sysinfo_regs(cd);
-		if (rc < 0) {
-			dev_err(dev, "%s: failed to get sysinfo regs rc=%d\n",
-				__func__, rc);
-			wd_state--;
-		}
+	dev_vdbg(dev, "%s: get sysinfo regs..\n", __func__);
+	rc = cyttsp4_get_sysinfo_regs(cd);
+	if (rc < 0) {
+		dev_err(dev, "%s: failed to get sysinfo regs rc=%d\n",
+			__func__, rc);
+		wd_state--;
 	}
 
 	if (mode == CY_MODE_SYSINFO)
 		goto exit;
 
-	/* Check for CAT mode */
-	if (mode == CY_MODE_CAT) {
-		host_mode = CY_HST_CAT;
-	} else {
-		/* Go with Operational mode */
-		mode = CY_MODE_OPERATIONAL;
-		host_mode = CY_HST_OPERATE;
-	}
-
+	/* switch to operational mode */
 	dev_vdbg(cd->dev, "%s: set mode cd->core=%p hst_mode=%02X mode=%d...\n",
-		__func__, cd->core, host_mode, mode);
-	set_mode(cd, cd->core, host_mode, mode);
+		__func__, cd->core, CY_HST_OPERATE, CY_MODE_OPERATIONAL);
+	set_mode(cd, cd->core, CY_HST_OPERATE, CY_MODE_OPERATIONAL);
 
 exit:
 	mutex_lock(&cd->system_lock);
@@ -3659,6 +3650,7 @@ static int cyttsp4_startup_(struct cyttsp4_core_data *cd)
 {
 	struct atten_node *atten, *atten_n;
 	unsigned long flags;
+	long t;
 	int rc;
 
 	dev_dbg(cd->dev, "%s: enter...\n", __func__);
@@ -3683,7 +3675,7 @@ static int cyttsp4_startup_(struct cyttsp4_core_data *cd)
 			__func__, cd->core->adap->id, rc);
 	mutex_unlock(&cd->system_lock);
 
-	rc = cyttsp4_wait_mode_change(cd, CY_MODE_SYSINFO);
+	rc = cyttsp4_wait_sysinfo_mode(cd);
 	if (rc) {
 		cyttsp4_start_wd_timer(cd, -1);
 
@@ -3708,27 +3700,27 @@ static int cyttsp4_startup_(struct cyttsp4_core_data *cd)
 		__func__, cd->core, CY_HST_OPERATE, CY_MODE_OPERATIONAL);
 	set_mode(cd, cd->core, CY_HST_OPERATE, CY_MODE_OPERATIONAL);
 
-	/* attention startup */
-	spin_lock_irqsave(&cd->spinlock, flags);
-	list_for_each_entry_safe(atten, atten_n,
-		&cd->atten_list[CY_ATTEN_STARTUP], node) {
-		dev_dbg(cd->dev, "%s: attention for '%s'", __func__,
-			dev_name(&atten->ttsp->dev));
-		spin_unlock_irqrestore(&cd->spinlock, flags);
-		atten->func(atten->ttsp);
-		spin_lock_irqsave(&cd->spinlock, flags);
-	}
-	spin_unlock_irqrestore(&cd->spinlock, flags);
-
 	/* restore to sleep if was suspended */
 	mutex_lock(&cd->system_lock);
 	if (cd->sleep_state == SS_SLEEP_ON) {
 		cd->sleep_state = SS_SLEEP_OFF;
 		mutex_unlock(&cd->system_lock);
+
 		cyttsp4_core_sleep_(cd);
-		mutex_lock(&cd->system_lock);
+	} else {
+		mutex_unlock(&cd->system_lock);
+		/* attention startup */
+		spin_lock_irqsave(&cd->spinlock, flags);
+		list_for_each_entry_safe(atten, atten_n,
+			&cd->atten_list[CY_ATTEN_STARTUP], node) {
+			dev_dbg(cd->dev, "%s: attention for '%s'", __func__,
+				dev_name(&atten->ttsp->dev));
+			spin_unlock_irqrestore(&cd->spinlock, flags);
+			atten->func(atten->ttsp);
+			spin_lock_irqsave(&cd->spinlock, flags);
+		}
+		spin_unlock_irqrestore(&cd->spinlock, flags);
 	}
-	mutex_unlock(&cd->system_lock);
 	/* Required for signal to the TTHE */
 	dev_info(cd->dev, "%s: cyttsp4_exit startup r=%d...\n", __func__, rc);
 	cd->startup_done = true;

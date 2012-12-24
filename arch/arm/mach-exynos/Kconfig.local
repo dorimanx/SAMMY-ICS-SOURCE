@@ -296,13 +296,4 @@ config MACH_M0_GRANDECTC
 config MACH_M0_DUOSCTC
 	bool "M0 CHN DUOS CTC board"
 
-choice
-	prompt "KONA Note8 Target Carrier"
-	depends on MACH_KONA && TARGET_LOCALE_EUR
-	default MACH_KONA_EUR_OPEN
-
-config MACH_KONA_EUR_ANY
-	bool "KONA Note8 EUR ANY"
-endchoice
-
 endmenu

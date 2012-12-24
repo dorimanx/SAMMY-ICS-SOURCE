@@ -867,17 +867,12 @@ retry_mode_set:
 		}
 	}
 
-	state->isp_mode = mode;
-
-	if (state->factory_test_num != 0x0) {
-		cam_trace("X\n");
-		return old_mode;
-	}
-
 	if (state->mode == MODE_SMART_AUTO) {
 		if (old_mode == M9MO_STILLCAP_MODE && mode == M9MO_MONITOR_MODE)
 			m9mo_set_smart_auto_default_value(sd, 0);
 	}
+
+	state->isp_mode = mode;
 
 	cam_trace("X\n");
 	return old_mode;
@@ -1400,7 +1395,6 @@ static int m9mo_set_lock(struct v4l2_subdev *sd, int val)
 static int m9mo_set_CAF(struct v4l2_subdev *sd, int val)
 {
 	int err, range_status, af_range, zoom_status, mode_status;
-	int window_status = -1;
 	struct m9mo_state *state = to_state(sd);
 
 	if (state->fps == 120) {
@@ -1451,16 +1445,6 @@ static int m9mo_set_CAF(struct v4l2_subdev *sd, int val)
 						M9MO_LENS_AF_INITIAL, 0x04);
 				CHECK_ERR(err);
 #endif
-			}
-
-			/* Set AF Window Mode to Center*/
-			err = m9mo_readb(sd, M9MO_CATEGORY_LENS,
-				M9MO_LENS_AF_WINDOW_MODE, &window_status);
-
-			if (window_status != 0x0) {
-				err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-					M9MO_LENS_AF_WINDOW_MODE, 0x0);
-				CHECK_ERR(err);
 			}
 
 			/* Start Continuous AF */
@@ -3203,7 +3187,6 @@ static int m9mo_set_iso(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	} else {
 		switch (state->mode) {
 		case MODE_PROGRAM:
-		case MODE_BEST_GROUP_POSE:
 			if (current_state != 0x04) {
 				err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
 					M9MO_AE_EV_PRG_MODE_CAP, 0x04);
@@ -3285,23 +3268,17 @@ static int m9mo_set_exposure(struct v4l2_subdev *sd,
 	qc.id = ctrl->id;
 	m9mo_queryctrl(sd, &qc);
 
-	if ((val < qc.minimum || val > qc.maximum) && (val != 50)) {
+	if (val < qc.minimum || val > qc.maximum) {
 		cam_warn("invalied value, %d\n", val);
 		val = qc.default_value;
 	}
 
-	if (val == 50) {
-		/* + 0.5 EV */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_INDEX, 0x23);
-		CHECK_ERR(err);
-	} else {
-		val -= qc.minimum;
+	val -= qc.minimum;
 
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_INDEX, exposure[val]);
-		CHECK_ERR(err);
-	}
+	err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
+		M9MO_AE_INDEX, exposure[val]);
+	CHECK_ERR(err);
+
 	cam_trace("X\n");
 	return 0;
 }
@@ -4089,14 +4066,17 @@ retry:
 		}
 	}
 
-	/* fix range */
-	if (state->mode == MODE_SMART_AUTO || state->mode == MODE_VIDEO
-	|| state->mode == MODE_CLOSE_UP || state->mode == MODE_BEAUTY_SHOT
-	|| state->mode == MODE_FOOD || state->mode == MODE_CANDLE) {
+	/* fix range to auto-macro when SMART AUTO mode */
+	if (state->mode == MODE_SMART_AUTO)
 		af_range = 0x02;
-	} else if (state->mode >= MODE_BEST_GROUP_POSE) {
-		af_range = 0x00;
-	}
+
+	/* fix range to auto-macro when MOVIE mode */
+	if (state->mode == MODE_VIDEO)
+		af_range = 0x02;
+
+	/* fix range to macro when CLOSE_UP mode */
+	if (state->mode == MODE_CLOSE_UP)
+		af_range = 0x01;
 
 	/* fix window to center */
 	if ((state->focus.mode == 0 || state->focus.mode == 1)
@@ -4224,9 +4204,7 @@ static int m9mo_set_focus_range(struct v4l2_subdev *sd, int val)
 	struct m9mo_state *state = to_state(sd);
 	int err, range_status;
 
-	/* fix range */
-	if (state->mode == MODE_SMART_AUTO || state->mode == MODE_VIDEO
-	|| state->mode >= MODE_BEST_GROUP_POSE) {
+	if (state->mode == MODE_SMART_AUTO || state->mode == MODE_VIDEO) {
 		cam_trace("don't set !!!\n");
 		return 0;
 	}
@@ -4309,6 +4287,7 @@ static int m9mo_set_touch_auto_focus(struct v4l2_subdev *sd, int val)
 
 static int m9mo_set_AF_LED(struct v4l2_subdev *sd, int val)
 {
+	struct m9mo_state *state = to_state(sd);
 	int err;
 	int set_AF_LED_On;
 
@@ -4322,6 +4301,8 @@ static int m9mo_set_AF_LED(struct v4l2_subdev *sd, int val)
 	err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
 		M9MO_LENS_AF_LED, set_AF_LED_On);
 	CHECK_ERR(err);
+
+	state->set_AF_LED_On = val;
 
 	cam_trace("X\n");
 	return 0;
@@ -4349,6 +4330,7 @@ static int m9mo_set_timer_Mode(struct v4l2_subdev *sd, int val)
 
 static int m9mo_set_timer_LED(struct v4l2_subdev *sd, int val)
 {
+	struct m9mo_state *state = to_state(sd);
 	int err;
 	int set_timer_LED_On;
 
@@ -4374,6 +4356,16 @@ static int m9mo_set_timer_LED(struct v4l2_subdev *sd, int val)
 	default:
 		cam_warn("invalid value, %d", val);
 		return 0;
+	}
+
+	if (state->set_AF_LED_On) {
+		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW,
+			0x4, 0x0);
+		CHECK_ERR(err);
+	} else {
+		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW,
+			0x4, 0x1);
+		CHECK_ERR(err);
 	}
 
 	err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
@@ -5720,23 +5712,13 @@ static int m9mo_set_fps(struct v4l2_subdev *sd, int val)
 
 	switch (val) {
 	case 120:
-		cam_trace("~~~~~~ 120 fps ~~~~~~%s\n",
-			state->mode == MODE_GOLF_SHOT ? " Golf Shot mode" : "");
-		if (state->mode == MODE_GOLF_SHOT) {
-			err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-					M9MO_AE_EP_MODE_MON, 0x12);
-			CHECK_ERR(err);
-			err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-					M9MO_AE_EP_MODE_CAP, 0x12);
-			CHECK_ERR(err);
-		} else {
-			err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-					M9MO_AE_EP_MODE_MON, 0x1C);
-			CHECK_ERR(err);
-			err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-					M9MO_AE_EP_MODE_CAP, 0x1C);
-			CHECK_ERR(err);
-		}
+		cam_trace("~~~~~~ 120 fps ~~~~~~\n");
+		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
+				M9MO_AE_EP_MODE_MON, 0x1C);
+		CHECK_ERR(err);
+		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
+				M9MO_AE_EP_MODE_CAP, 0x1C);
+		CHECK_ERR(err);
 		break;
 
 	case 60:
@@ -5851,7 +5833,7 @@ static int m9mo_set_widget_mode_level(struct v4l2_subdev *sd, int val)
 {
 	struct m9mo_state *state = to_state(sd);
 	int err;
-	int /*denominator = 500,*/ numerator = 8;
+	int denominator = 500, numerator = 8;
 	u32 f_number = 0x45;
 
 	/* 3 step -> 2 step, low level is not used */
@@ -5906,6 +5888,11 @@ static int m9mo_set_widget_mode_level(struct v4l2_subdev *sd, int val)
 		CHECK_ERR(err);
 		err = m9mo_writeb(sd, M9MO_CATEGORY_CAPPARM,
 			0x42, 0x0D + state->widget_mode_level);
+		CHECK_ERR(err);
+	} else if (state->mode == MODE_BLUE_SKY) {
+		/* COLOR EFFECT SET */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_MON,
+			M9MO_MON_COLOR_EFFECT, 0x11 + state->widget_mode_level);
 		CHECK_ERR(err);
 	} else if (state->mode == MODE_NATURAL_GREEN) {
 		/* COLOR EFFECT SET */
@@ -7025,9 +7012,7 @@ static int m9mo_set_factory_af_zone(struct v4l2_subdev *sd, int val)
 static int m9mo_set_factory_af_lens(struct v4l2_subdev *sd, int val)
 {
 	int err;
-#if 0
 	u32 int_factor;
-#endif
 
 	cam_trace("E val : %d\n", val);
 
@@ -7142,12 +7127,11 @@ static int m9mo_set_factory_sh_close(struct v4l2_subdev *sd, int val)
 
 	case FACTORY_SH_CLOSE_END_CHECK:
 		cam_trace("~ FACTORY_SH_CLOSE_END_CHECK ~\n");
-		err = m9mo_readb(sd, M9MO_CATEGORY_ADJST,
-			0x53, &end_check);
+		err = m9mo_readb(sd, M9MO_CATEGORY_LENS,
+			0x40, &end_check);
 		CHECK_ERR(err);
 		state->factory_end_check = end_check;
-
-		if (end_check == 0x6) {
+		if (end_check == 2) {
 			int_factor = m9mo_wait_interrupt(sd, M9MO_ISP_TIMEOUT);
 			if (!(int_factor)) {
 				cam_warn("M9MO_INT_MODE isn't issued, %#x\n",
@@ -7155,11 +7139,13 @@ static int m9mo_set_factory_sh_close(struct v4l2_subdev *sd, int val)
 				return -ETIMEDOUT;
 			}
 		}
-
 		break;
 
 	case FACTORY_SH_CLOSE_LOG:
 		cam_trace("~ FACTORY_SH_CLOSE_LOG ~\n");
+		err = m9mo_make_CSV_rawdata(sd,
+			M9MO_FLASH_FACTORY_SH_CLOSE, true);
+		CHECK_ERR(err);
 
 		int_factor = m9mo_wait_interrupt(sd, M9MO_ISP_TIMEOUT);
 		if (!(int_factor)) {
@@ -7167,10 +7153,6 @@ static int m9mo_set_factory_sh_close(struct v4l2_subdev *sd, int val)
 				int_factor);
 			return -ETIMEDOUT;
 		}
-
-		err = m9mo_make_CSV_rawdata(sd,
-			M9MO_FLASH_FACTORY_SH_CLOSE, true);
-		CHECK_ERR(err);
 
 		break;
 
@@ -8518,7 +8500,7 @@ static int m9mo_set_iqgrp(struct v4l2_subdev *sd, int val)
 		else if (state->preview_height == 720)
 			iqgrp_val = 0x65;
 	} else if (state->sensor_mode == SENSOR_MOVIE
-		&& (state->fps == 30 || state->fps == 0)) {
+		&& state->fps == 30) {
 		if (state->preview_height == 1080)
 			iqgrp_val = 0x64;
 		else if (state->preview_height == 720)
@@ -8528,8 +8510,7 @@ static int m9mo_set_iqgrp(struct v4l2_subdev *sd, int val)
 		else if (state->preview_height == 240)
 			iqgrp_val = 0x69;
 	} else {
-		if (state->preview_width == 768
-			|| state->mode == MODE_GOLF_SHOT)
+		if (state->preview_width == 768)
 			iqgrp_val = 0x67;
 		else
 			iqgrp_val = 0x01;
@@ -8612,8 +8593,8 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 	struct m9mo_state *state = to_state(sd);
 	int err = 0;
 	int color_effect, current_mode;
-	/*int denominator = 500, numerator = 8;*/
-	/*u32 f_number = 0x45;*/
+	int denominator = 500, numerator = 8;
+	u32 f_number = 0x45;
 
 	cam_dbg("E, value %d\n", val);
 
@@ -8632,10 +8613,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* Set LIKE_PRO_EN Disable */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Set Still Mode */
@@ -8679,10 +8656,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x00);
 		CHECK_ERR(err);
 
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
-		CHECK_ERR(err);
-
 		/* Set CATE_408 to None */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x08, 0x00);
 		CHECK_ERR(err);
@@ -8711,18 +8684,10 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 				M9MO_AE_EV_PRG_MODE_CAP, 0x04);
 			CHECK_ERR(err);
 		}
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
 		break;
 
 	case MODE_PROGRAM:
 	case MODE_BEST_GROUP_POSE:
-	case MODE_BEAUTY_SHOT:
-	case MODE_BEST_SHOT:
-	case MODE_CONTINUOUS_SHOT:
 		err = m9mo_writeb(sd, M9MO_CATEGORY_AE, 0x53, 0x01);
 		CHECK_ERR(err);
 
@@ -8732,10 +8697,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* Set LIKE_PRO_EN Disable */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Set CATE_408 to None */
@@ -8766,20 +8727,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 				M9MO_AE_EV_PRG_MODE_CAP, 0x04);
 			CHECK_ERR(err);
 		}
-
-		if (state->mode == MODE_BEAUTY_SHOT) {
-			/* Set AF range to auto-macro */
-			err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-				M9MO_LENS_AF_SCAN_RANGE, 0x02);
-			CHECK_ERR(err);
-		} else if (state->mode == MODE_BEST_GROUP_POSE
-		|| state->mode == MODE_BEST_SHOT
-		|| state->mode == MODE_CONTINUOUS_SHOT) {
-			/* Set AF range to auto */
-			err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-				M9MO_LENS_AF_SCAN_RANGE, 0x00);
-			CHECK_ERR(err);
-		}
 		break;
 
 	case MODE_A:
@@ -8792,10 +8739,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* Set LIKE_PRO_EN Disable */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Set CATE_408 to None */
@@ -8843,10 +8786,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* Set LIKE_PRO_EN Disable */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Set CATE_408 to None */
@@ -8897,10 +8836,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* Set LIKE_PRO_EN Disable */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Set CATE_408 to None */
@@ -8965,10 +8900,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x00);
 		CHECK_ERR(err);
 
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
-		CHECK_ERR(err);
-
 		/* Set HISTOGRAM OFF */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_MON, 0x58, 0x00);
 		CHECK_ERR(err);
@@ -8982,18 +8913,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
 			M9MO_LENS_AF_SCAN_RANGE, 0x02);
 		CHECK_ERR(err);
-
-		if (state->fps == 120) {
-			/* Set Monitor EV program mode : 120 fps */
-			err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-				M9MO_AE_EP_MODE_MON, 0x1C);
-			CHECK_ERR(err);
-
-			/* Set Still Capture EV program mode : 120 fps */
-			err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-				M9MO_AE_EP_MODE_CAP, 0x1C);
-			CHECK_ERR(err);
-		}
 		break;
 
 	case MODE_HIGH_SPEED:
@@ -9010,10 +8929,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* LIKE A PRO MODE SET */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x01);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Still Capture EVP Set Parameter Mode */
@@ -9047,11 +8962,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		/* Set CATE_409 to 1(PREVIEW) */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
 		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
 		break;
 
 	case MODE_LIGHT_TRAIL_SHOT:
@@ -9068,10 +8978,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* LIKE A PRO MODE SET */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x02);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Still Capture EVP Set Parameter Mode */
@@ -9118,11 +9024,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		/* Set CATE_409 to 1(PREVIEW) */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
 		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
 		break;
 
 	case MODE_WATERFALL:
@@ -9139,10 +9040,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* LIKE A PRO MODE SET */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x03);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Still Capture EVP Set Parameter Mode */
@@ -9176,11 +9073,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		/* Set CATE_409 to 1(PREVIEW) */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
 		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
 		break;
 
 	case MODE_SILHOUETTE:
@@ -9197,10 +9089,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* LIKE A PRO MODE SET */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x04);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Set Monitor EV program mode */
@@ -9235,11 +9123,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		/* Set CATE_409 to 1(PREVIEW) */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
 		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
 		break;
 
 	case MODE_SUNSET:
@@ -9256,10 +9139,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* LIKE A PRO MODE SET */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x05);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Still Capture EVP Set Parameter Mode */
@@ -9293,11 +9172,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		/* Set CATE_409 to 1(PREVIEW) */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
 		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
 		break;
 
 	case MODE_CLOSE_UP:
@@ -9314,10 +9188,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* LIKE A PRO MODE SET */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x06);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Still Capture EVP Set Parameter Mode */
@@ -9357,9 +9227,9 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
 		CHECK_ERR(err);
 
-		/* Set AF range to auto-macro */
+		/* Set AF range to MACRO */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x02);
+			M9MO_LENS_AF_SCAN_RANGE, 0x01);
 		CHECK_ERR(err);
 		break;
 
@@ -9377,10 +9247,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* LIKE A PRO MODE SET */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x07);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Still Capture EVP Set Parameter Mode */
@@ -9432,10 +9298,62 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 		/* Set CATE_409 to 1(PREVIEW) */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
 		CHECK_ERR(err);
+		break;
 
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
+	case MODE_BLUE_SKY:
+		err = m9mo_writeb(sd, M9MO_CATEGORY_AE, 0x53, 0x01);
+		CHECK_ERR(err);
+
+		/* Set CATE_408 to None */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x08, 0x00);
+		CHECK_ERR(err);
+
+		/* Set HISTOGRAM ON */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_MON, 0x58, 0x01);
+		CHECK_ERR(err);
+
+		/* Set Monitor EV program mode */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
+			M9MO_AE_EP_MODE_MON, 0x00);
+		CHECK_ERR(err);
+
+		/* Set Still Capture EV program mode */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
+			M9MO_AE_EP_MODE_CAP, 0x00);
+		CHECK_ERR(err);
+
+		/* LIKE A PRO MODE SET */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x08);
+		CHECK_ERR(err);
+
+		/* Still Capture EVP Set Parameter Mode */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
+			M9MO_AE_EV_PRG_MODE_CAP, 0x00);
+		CHECK_ERR(err);
+
+		/* LIKE A PRO STEP SET */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE,
+			0x02, state->widget_mode_level);
+		CHECK_ERR(err);
+
+		/* COLOR EFFECT SET */
+		err = m9mo_readb(sd, M9MO_CATEGORY_MON,
+			M9MO_MON_COLOR_EFFECT, &color_effect);
+		CHECK_ERR(err);
+
+		if (color_effect < 0x11)
+			state->color_effect = color_effect;
+
+		err = m9mo_writeb(sd, M9MO_CATEGORY_MON,
+			M9MO_MON_COLOR_EFFECT, 0x11 + state->widget_mode_level);
+		CHECK_ERR(err);
+
+		/* Set LIKE_PRO_EN Enable */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x01);
+		CHECK_ERR(err);
+
+		/* Set CATE_409 to 1(PREVIEW) */
+		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
 		CHECK_ERR(err);
 		break;
 
@@ -9463,10 +9381,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* LIKE A PRO MODE SET */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x09);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x00);
 		CHECK_ERR(err);
 
 		/* Still Capture EVP Set Parameter Mode */
@@ -9497,344 +9411,6 @@ static int m9mo_set_PASM_mode(struct v4l2_subdev *sd, int val)
 
 		/* Set CATE_409 to 1(PREVIEW) */
 		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
-		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
-		break;
-
-	case MODE_DAWN:
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE, 0x53, 0x01);
-		CHECK_ERR(err);
-
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON,
-			M9MO_MON_COLOR_EFFECT, state->color_effect);
-		CHECK_ERR(err);
-
-		/* Set CATE_408 to None */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x08, 0x00);
-		CHECK_ERR(err);
-
-		/* Set HISTOGRAM ON */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON, 0x58, 0x01);
-		CHECK_ERR(err);
-
-		/* LIKE A PRO MODE SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x0B);
-		CHECK_ERR(err);
-
-		/* Set Monitor EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_MON, 0x00);
-		CHECK_ERR(err);
-
-		/* Set Still Capture EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x01);
-		CHECK_ERR(err);
-
-		/* Still Capture EVP Set Parameter Mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EV_PRG_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* Set LIKE_PRO_EN Enable */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x01);
-		CHECK_ERR(err);
-
-		/* Set CATE_409 to 1(PREVIEW) */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
-		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
-		break;
-
-
-	case MODE_SNOW:
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE, 0x53, 0x01);
-		CHECK_ERR(err);
-
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON,
-			M9MO_MON_COLOR_EFFECT, state->color_effect);
-		CHECK_ERR(err);
-
-		/* Set CATE_408 to None */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x08, 0x00);
-		CHECK_ERR(err);
-
-		/* Set HISTOGRAM ON */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON, 0x58, 0x01);
-		CHECK_ERR(err);
-
-		/* LIKE A PRO MODE SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x0C);
-		CHECK_ERR(err);
-
-		/* Set Monitor EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_MON, 0x00);
-		CHECK_ERR(err);
-
-		/* Set Still Capture EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x04);
-		CHECK_ERR(err);
-
-		/* LIKE PRO EV VIAS SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x08, 0x28);
-		CHECK_ERR(err);
-
-		/* Still Capture EVP Set Parameter Mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EV_PRG_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* Set LIKE_PRO_EN Enable */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x01);
-		CHECK_ERR(err);
-
-		/* Set CATE_409 to 1(PREVIEW) */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
-		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
-		break;
-
-	case MODE_BEACH:
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE, 0x53, 0x01);
-		CHECK_ERR(err);
-
-		/* Set CATE_408 to None */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x08, 0x00);
-		CHECK_ERR(err);
-
-		/* Set HISTOGRAM ON */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON, 0x58, 0x01);
-		CHECK_ERR(err);
-
-		/* LIKE A PRO MODE SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x0D);
-		CHECK_ERR(err);
-
-		/* Set Monitor EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_MON, 0x00);
-		CHECK_ERR(err);
-
-		/* Set Still Capture EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x04);
-		CHECK_ERR(err);
-
-		/* LIKE PRO EV VIAS SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x08, 0x25);
-		CHECK_ERR(err);
-
-		/* Still Capture EVP Set Parameter Mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EV_PRG_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* SET GAMMA TBL RGB CAP */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON,
-			M9MO_MON_COLOR_EFFECT, 0x23);
-		CHECK_ERR(err);
-
-		/* Set LIKE_PRO_EN Enable */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x01);
-		CHECK_ERR(err);
-
-		/* Set CATE_409 to 1(PREVIEW) */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
-		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
-		CHECK_ERR(err);
-		break;
-
-	case MODE_FOOD:
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE, 0x53, 0x01);
-		CHECK_ERR(err);
-
-		/* Set CATE_408 to None */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x08, 0x00);
-		CHECK_ERR(err);
-
-		/* Set HISTOGRAM ON */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON, 0x58, 0x01);
-		CHECK_ERR(err);
-
-		/* LIKE A PRO MODE SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x0E);
-		CHECK_ERR(err);
-
-		/* Set Monitor EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_MON, 0x00);
-		CHECK_ERR(err);
-
-		/* Set Still Capture EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x02);
-		CHECK_ERR(err);
-
-		/* Still Capture EVP Set Parameter Mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EV_PRG_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* SET GAMMA TBL RGB CAP */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON,
-			M9MO_MON_COLOR_EFFECT, 0x15);
-		CHECK_ERR(err);
-
-		/* Set LIKE_PRO_EN Enable */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x01);
-		CHECK_ERR(err);
-
-		/* Set CATE_409 to 1(PREVIEW) */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
-		CHECK_ERR(err);
-
-		/* Set AF range to auto-macro */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x02);
-		CHECK_ERR(err);
-		break;
-
-	case MODE_CANDLE:
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE, 0x53, 0x01);
-		CHECK_ERR(err);
-
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON,
-			M9MO_MON_COLOR_EFFECT, state->color_effect);
-		CHECK_ERR(err);
-
-		/* Set CATE_408 to None */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x08, 0x00);
-		CHECK_ERR(err);
-
-		/* Set HISTOGRAM ON */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON, 0x58, 0x01);
-		CHECK_ERR(err);
-
-		/* LIKE A PRO MODE SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x0F);
-		CHECK_ERR(err);
-
-		/* Set Monitor EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_MON, 0x00);
-		CHECK_ERR(err);
-
-		/* Set Still Capture EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x06);
-		CHECK_ERR(err);
-
-		/* LIKE PRO EV VIAS SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x08, 0x14);
-		CHECK_ERR(err);
-
-		/* Still Capture EVP Set Parameter Mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EV_PRG_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* Set LIKE_PRO_EN Enable */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x01);
-		CHECK_ERR(err);
-
-		/* Set CATE_409 to 1(PREVIEW) */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
-		CHECK_ERR(err);
-
-		/* Set AF range to auto-macro */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x02);
-		CHECK_ERR(err);
-		break;
-
-	case MODE_PARTY_INDOOR:
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE, 0x53, 0x01);
-		CHECK_ERR(err);
-
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON,
-			M9MO_MON_COLOR_EFFECT, state->color_effect);
-		CHECK_ERR(err);
-
-		/* Set CATE_408 to None */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x08, 0x00);
-		CHECK_ERR(err);
-
-		/* Set HISTOGRAM ON */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_MON, 0x58, 0x01);
-		CHECK_ERR(err);
-
-		/* LIKE A PRO MODE SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x01, 0x10);
-		CHECK_ERR(err);
-
-		/* Set Monitor EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_MON, 0x15);
-		CHECK_ERR(err);
-
-		/* Set Still Capture EV program mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EP_MODE_CAP, 0x15);
-		CHECK_ERR(err);
-
-		/* LIKE PRO DISPLAY SET */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x07, 0x01);
-		CHECK_ERR(err);
-
-		/* Still Capture EVP Set Parameter Mode */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_AE,
-			M9MO_AE_EV_PRG_MODE_CAP, 0x00);
-		CHECK_ERR(err);
-
-		/* Set LIKE_PRO_EN Enable */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_PRO_MODE, 0x00, 0x01);
-		CHECK_ERR(err);
-
-		/* Set CATE_409 to 1(PREVIEW) */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x01);
-		CHECK_ERR(err);
-
-		/* Set AF range to auto */
-		err = m9mo_writeb(sd, M9MO_CATEGORY_LENS,
-			M9MO_LENS_AF_SCAN_RANGE, 0x00);
 		CHECK_ERR(err);
 		break;
 
@@ -10198,7 +9774,7 @@ static int m9mo_set_smart_auto_s1_push(struct v4l2_subdev *sd, int val)
 
 	if (state->mode == MODE_SMART_AUTO ||
 		(state->mode >= MODE_BACKGROUND_BLUR &&
-		state->mode <= MODE_PARTY_INDOOR)) {
+		state->mode <= MODE_NATURAL_GREEN)) {
 		if (val == 1) {
 			err = m9mo_writeb(sd, M9MO_CATEGORY_NEW, 0x09, 0x02);
 			CHECK_ERR(err);

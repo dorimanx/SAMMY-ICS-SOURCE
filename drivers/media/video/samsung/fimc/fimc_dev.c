@@ -1779,7 +1779,7 @@ static int fimc_open_with_retry(struct file *filp)
 
 	ret = fimc_open(filp);
 
-	while (ret == -ENOMEM && i++ < 5) {
+	while (ret == -ENOMEM && i++ < 3) {
 		msleep(1000);
 		ret = fimc_open(filp);
 	}

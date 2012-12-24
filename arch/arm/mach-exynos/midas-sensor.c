@@ -361,6 +361,45 @@ static int optical_gpio_init(void)
 	s3c_gpio_setpull(GPIO_PS_ALS_EN, S3C_GPIO_PULL_NONE);
 	return ret;
 }
+
+static unsigned long gp2a_get_threshold(u8 *thesh_diff)
+{
+	unsigned long threshold = 0x09;
+
+	if (thesh_diff)
+		*thesh_diff = 1;
+
+#if defined(CONFIG_MACH_BAFFIN_KOR_SKT) || defined(CONFIG_MACH_BAFFIN_KOR_KT)
+	if (system_rev > 4)
+		threshold = 0x06;
+	else
+		threshold = 0x07;
+	if (thesh_diff)
+		*thesh_diff = 2;
+#elif defined(CONFIG_MACH_BAFFIN_KOR_LGT)
+	if (system_rev > 5)
+		threshold = 0x06;
+	else
+		threshold = 0x07;
+	if (thesh_diff)
+		*thesh_diff = 2;
+#elif defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
+	threshold = 0x07;
+	if (thesh_diff)
+		*thesh_diff = 2;
+#elif defined(CONFIG_MACH_M3_USA_TMO)
+	threshold = 0x07;
+	if (thesh_diff)
+		*thesh_diff = 2;
+#endif
+
+	if (thesh_diff)
+		pr_info("%s, threshold low = 0x%lx, high = 0x%lx\n",
+			__func__, threshold, (threshold + *thesh_diff));
+	else
+		pr_info("%s, threshold = 0x%lx\n", __func__, threshold);
+	return threshold;
+}
 #endif
 
 #if defined(CONFIG_SENSORS_CM36651)
@@ -402,45 +441,6 @@ static struct cm3663_platform_data cm3663_pdata = {
 #endif
 
 #if defined(CONFIG_SENSORS_GP2A)
-static unsigned long gp2a_get_threshold(u8 *thesh_diff)
-{
-	u8 threshold = 0x09;
-
-	if (thesh_diff)
-		*thesh_diff = 1;
-
-#if defined(CONFIG_MACH_BAFFIN_KOR_SKT) || defined(CONFIG_MACH_BAFFIN_KOR_KT)
-	if (system_rev > 4)
-		threshold = 0x06;
-	else
-		threshold = 0x07;
-	if (thesh_diff)
-		*thesh_diff = 2;
-#elif defined(CONFIG_MACH_BAFFIN_KOR_LGT)
-	if (system_rev > 5)
-		threshold = 0x06;
-	else
-		threshold = 0x07;
-	if (thesh_diff)
-		*thesh_diff = 2;
-#elif defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
-	threshold = 0x07;
-	if (thesh_diff)
-		*thesh_diff = 2;
-#elif defined(CONFIG_MACH_M3_USA_TMO)
-	threshold = 0x07;
-	if (thesh_diff)
-		*thesh_diff = 2;
-#endif
-
-	if (thesh_diff)
-		pr_info("%s, threshold low = 0x%x, high = 0x%x\n",
-			__func__, threshold, (threshold + *thesh_diff));
-	else
-		pr_info("%s, threshold = 0x%x\n", __func__, threshold);
-	return threshold;
-}
-
 static struct gp2a_platform_data gp2a_pdata = {
 	.gp2a_led_on	= proximity_leda_on,
 	.p_out = GPIO_PS_ALS_INT,

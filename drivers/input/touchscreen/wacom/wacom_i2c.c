@@ -25,11 +25,7 @@
 #include <linux/uaccess.h>
 #include <linux/firmware.h>
 #include "wacom_i2c_func.h"
-#ifdef CONFIG_EPEN_WACOM_G9PL
-#include "w9002_flash.h"
-#else
 #include "wacom_i2c_flash.h"
-#endif
 #ifdef WACOM_IMPORT_FW_ALGO
 #include "wacom_i2c_coord_tables.h"
 #endif
@@ -190,6 +186,7 @@ int wacom_i2c_get_ums_data(struct wacom_i2c *wac_i2c, u8 **ums_data)
  malloc_error:
  size_error:
 	filp_close(fp, current->files);
+ open_err:
 	set_fs(old_fs);
 	return ret;
 }
@@ -226,8 +223,7 @@ int wacom_i2c_fw_update_UMS(struct wacom_i2c *wac_i2c)
 	return 0;
 }
 
-#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_T0)\
-	|| defined(CONFIG_MACH_KONA)
+#if defined(CONFIG_MACH_Q1_BD) || defined(CONFIG_MACH_T0)
 int wacom_i2c_firm_update(struct wacom_i2c *wac_i2c)
 {
 	int ret;
@@ -272,7 +268,6 @@ int wacom_i2c_firm_update(struct wacom_i2c *wac_i2c)
 #endif
 
 #if defined(CONFIG_MACH_P4NOTE)
-#if !defined(CONFIG_TARGET_LOCALE_USA)
 static bool epen_check_factory_mode(void)
 {
 	struct file *fp;
@@ -342,18 +337,15 @@ out:
 	set_fs(old_fs);
 	return ret;
 }
-#endif /* !defined(CONFIG_TARGET_LOCALE_USA) */
 
 static void update_fw_p4(struct wacom_i2c *wac_i2c)
 {
 	int ret = 0;
-	int retry = 3;
+	int retry = 2;
 
-#if !defined(CONFIG_TARGET_LOCALE_USA)
 	/* the firmware should be updated in factory mode durring the boot */
 	if (!epen_check_factory_mode())
 		retry = 0;
-#endif
 
 	while (retry--) {
 		printk(KERN_DEBUG "[E-PEN] INIT_FIRMWARE_FLASH is enabled.\n");
@@ -370,7 +362,7 @@ static void update_fw_p4(struct wacom_i2c *wac_i2c)
 
 	printk(KERN_DEBUG "[E-PEN] flashed.(%d)\n", ret);
 }
-#endif	/* CONFIG_MACH_P4NOTE */
+#endif
 
 static irqreturn_t wacom_interrupt(int irq, void *dev_id)
 {
@@ -797,8 +789,7 @@ static ssize_t epen_firmware_update_store(struct device *dev,
 
 	/*booting*/
 #if defined(CONFIG_MACH_Q1_BD) \
-	|| defined(CONFIG_MACH_T0) \
-	|| defined(CONFIG_MACH_KONA)
+	|| defined(CONFIG_MACH_T0)
 	case 'R':
 		ret = wacom_i2c_firm_update(wac_i2c);
 		break;
@@ -826,6 +817,8 @@ static ssize_t epen_firmware_update_store(struct device *dev,
 	mutex_unlock(&wac_i2c->lock);
 
 	return count;
+
+ param_err:
 
  failure:
 	wac_i2c->wac_feature->firm_update_status = -1;
@@ -1362,9 +1355,6 @@ static int wacom_i2c_probe(struct i2c_client *client,
 
 	/*Set switch type*/
 	wac_i2c->invert_pen_insert = wacom_i2c_invert_by_switch_type();
-#elif defined(CONFIG_MACH_KONA)
-	wac_i2c->wac_pdata->late_resume_platform_hw();
-	msleep(200);
 #endif
 #ifdef WACOM_PDCT_WORK_AROUND
 	wac_i2c->pen_pdct = PDCT_NOSIGNAL;

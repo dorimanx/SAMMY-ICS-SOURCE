@@ -3943,10 +3943,6 @@ static void u1_sound_init(void)
 		return;
 	}
 	gpio_direction_output(GPIO_MIC_BIAS_EN, 1);
-#ifdef CONFIG_TARGET_LOCALE_NA
-	s3c_gpio_setpull(GPIO_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
-#endif /* CONFIG_TARGET_LOCALE_NA */
-
 	gpio_set_value(GPIO_MIC_BIAS_EN, 0);
 	gpio_free(GPIO_MIC_BIAS_EN);
 
@@ -3956,10 +3952,6 @@ static void u1_sound_init(void)
 		return;
 	}
 	gpio_direction_output(GPIO_EAR_MIC_BIAS_EN, 1);
-#ifdef CONFIG_TARGET_LOCALE_NA
-	s3c_gpio_setpull(GPIO_EAR_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
-#endif /* CONFIG_TARGET_LOCALE_NA */
-
 	gpio_set_value(GPIO_EAR_MIC_BIAS_EN, 0);
 	gpio_free(GPIO_EAR_MIC_BIAS_EN);
 
@@ -3981,10 +3973,6 @@ static void u1_sound_init(void)
 			return;
 		}
 		gpio_direction_output(GPIO_SUB_MIC_BIAS_EN, 0);
-#ifdef CONFIG_TARGET_LOCALE_NA
-		s3c_gpio_setpull(GPIO_SUB_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
-#endif /* CONFIG_TARGET_LOCALE_NA */
-
 		gpio_free(GPIO_SUB_MIC_BIAS_EN);
 	}
 #endif /* #if defined(CONFIG_MACH_Q1_BD) */
@@ -4169,78 +4157,78 @@ static struct platform_device samsung_device_battery = {
 #ifdef CONFIG_TARGET_LOCALE_KOR
 /* temperature table for ADC 6 */
 static struct sec_bat_adc_table_data temper_table[] =  {
-	{ 264,    570 },
-	{ 282,    560 },
-	{ 301,    550 },
-	{ 319,    540 },
-	{ 338,    530 },
-	{ 356,    520 },
-	{ 375,    510 },
-	{ 394,    500 },
-	{ 413,    490 },
-	{ 432,    480 },
-	{ 451,    470 },
-	{ 470,    460 },
-	{ 489,    450 },
-	{ 508,    440 },
-	{ 527,    430 },
-	{ 546,    420 },
-	{ 565,    410 },
-	{ 584,    400 },
-	{ 603,    390 },
-	{ 622,    380 },
-	{ 641,    370 },
-	{ 666,    360 },
-	{ 692,    350 },
-	{ 718,    340 },
-	{ 744,    330 },
-	{ 770,    320 },
-	{ 796,    310 },
-	{ 822,    300 },
-	{ 848,    290 },
-	{ 874,    280 },
-	{ 900,    270 },
-	{ 926,    260 },
-	{ 952,    250 },
-	{ 978,    240 },
-	{ 1004,   230 },
-	{ 1030,   220 },
-	{ 1056,   210 },
-	{ 1082,   200 },
-	{ 1108,   190 },
-	{ 1131,   180 },
-	{ 1155,   170 },
-	{ 1178,   160 },
-	{ 1202,   150 },
-	{ 1226,   140 },
-	{ 1251,   130 },
-	{ 1275,   120 },
-	{ 1299,   110 },
-	{ 1324,   100 },
-	{ 1348,    90 },
-	{ 1372,    80 },
-	{ 1396,    70 },
-	{ 1421,    60 },
-	{ 1445,    50 },
-	{ 1468,    40 },
-	{ 1491,    30 },
-	{ 1513,    20 },
-	{ 1536,    10 },
-	{ 1559,     0 },
-	{ 1573,   -10 },
-	{ 1588,   -20 },
-	{ 1603,   -30 },
-	{ 1618,   -40 },
-	{ 1633,   -50 },
-	{ 1648,   -60 },
-	{ 1663,   -70 },
-	{ 1678,   -80 },
-	{ 1693,   -90 },
-	{ 1705,  -100 },
-	{ 1720,  -110 },
-	{ 1736,  -120 },
-	{ 1751,  -130 },
-	{ 1767,  -140 },
+	{ 264,      570 },
+	{ 289,      560 },
+	{ 314,      550 },
+	{ 340,      540 },
+	{ 365,      530 },
+	{ 390,      520 },
+	{ 416,      510 },
+	{ 441,      500 },
+	{ 467,      490 },
+	{ 492,      480 },
+	{ 517,      470 },
+	{ 543,      460 },
+	{ 578,      450 },
+	{ 614,      440 },
+	{ 649,      430 },
+	{ 686,      420 },
+	{ 698,      410 },
+	{ 710,      400 },
+	{ 722,      390 },
+	{ 734,      380 },
+	{ 746,      370 },
+	{ 761,      360 },
+	{ 780,      350 },
+	{ 799,      340 },
+	{ 819,      330 },
+	{ 838,      320 },
+	{ 857,      310 },
+	{ 876,      300 },
+	{ 895,      290 },
+	{ 914,      280 },
+	{ 933,      270 },
+	{ 952,      260 },
+	{ 971,      250 },
+	{ 990,      240 },
+	{ 1009,     230 },
+	{ 1030,     220 },
+	{ 1056,     210 },
+	{ 1082,     200 },
+	{ 1108,     190 },
+	{ 1131,     180 },
+	{ 1155,     170 },
+	{ 1178,     160 },
+	{ 1202,     150 },
+	{ 1226,     140 },
+	{ 1251,     130 },
+	{ 1275,     120 },
+	{ 1299,     110 },
+	{ 1324,     100 },
+	{ 1348,      90 },
+	{ 1372,      80 },
+	{ 1396,      70 },
+	{ 1421,      60 },
+	{ 1445,      50 },
+	{ 1468,      40 },
+	{ 1491,      30 },
+	{ 1513,      20 },
+	{ 1536,      10 },
+	{ 1559,       0 },
+	{ 1573,     -10 },
+	{ 1588,     -20 },
+	{ 1603,     -30 },
+	{ 1618,     -40 },
+	{ 1633,     -50 },
+	{ 1648,     -60 },
+	{ 1663,     -70 },
+	{ 1678,     -80 },
+	{ 1693,     -90 },
+	{ 1705,    -100 },
+	{ 1720,    -110 },
+	{ 1736,    -120 },
+	{ 1751,    -130 },
+	{ 1767,    -140 },
 };
 #elif defined(CONFIG_TARGET_LOCALE_NTT)
 /* temperature table for ADC 6 */
@@ -6302,27 +6290,6 @@ static struct i2c_board_info i2c_devs4[] __initdata = {
 };
 #endif
 
-#if defined(CONFIG_WIMAX_CMC)
-static struct i2c_gpio_platform_data wmxeeprom_i2c_gpio_data = {
-	.sda_pin  = GPIO_CMC_SDA_18V,
-	.scl_pin  = GPIO_CMC_SCL_18V,
-	.udelay = 2,
-};
-static struct platform_device wmxeeprom_i2c_gpio_device = {
-	.name	= "i2c-gpio",
-	.id	= 18,
-	.dev	= {
-		.platform_data  = &wmxeeprom_i2c_gpio_data,
-	},
-};
-static struct i2c_board_info wmxeeprom_i2c_devices[] __initdata = {
-{
-	I2C_BOARD_INFO("wmxeeprom", 0x50),
-}
-};
-
-#endif /* CONFIG_WIMAX_CMC */
-
 #ifdef CONFIG_S3C_DEV_I2C5
 /* I2C5 */
 static struct i2c_board_info i2c_devs5[] __initdata = {
@@ -7325,10 +7292,6 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 	/* consumer driver should resume after resuming i2c drivers */
 	&u1_regulator_consumer,
 
-#if defined(CONFIG_WIMAX_CMC)
-	&wmxeeprom_i2c_gpio_device,
-#endif
-
 #ifdef CONFIG_EXYNOS4_DEV_MSHC
 	&s3c_device_mshci,
 #endif
@@ -8035,11 +7998,6 @@ static void __init smdkc210_machine_init(void)
 						ARRAY_SIZE(i2c_devs17_emul));
 #endif
 #endif
-#endif
-
-#if defined(CONFIG_WIMAX_CMC)
-	i2c_register_board_info(18, wmxeeprom_i2c_devices,
-			ARRAY_SIZE(wmxeeprom_i2c_devices));
 #endif
 
 

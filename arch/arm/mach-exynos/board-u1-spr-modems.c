@@ -426,9 +426,8 @@ static struct modem_data cdma_modem_data = {
 	.gpio_cp_reset     = GPIO_QSC_PHONE_RST,
 	.gpio_pda_active   = GPIO_PDA_ACTIVE,
 	.gpio_phone_active = GPIO_QSC_PHONE_ACTIVE,
-	.gpio_ap_wakeup    = GPIO_C210_DPRAM_INT_N,
-	.gpio_cp_dump_int  = GPIO_CP_DUMP_INT,
-	.gpio_mbx_intr     = GPIO_DPRAM_INT_CP_N,
+	.gpio_ap_wakeup = GPIO_C210_DPRAM_INT_N,
+	.gpio_cp_dump_int = GPIO_CP_DUMP_INT,
 
 	.modem_net  = CDMA_NETWORK,
 	.modem_type = QC_QSC6085,

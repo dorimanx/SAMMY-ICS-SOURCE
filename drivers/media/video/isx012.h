@@ -673,7 +673,7 @@ extern int isx012_create_file(struct class *cls);
 #define ISX012_CNT_CM_CHECK		280 /* 160 -> 180 */
 #define ISX012_CNT_STREAMOFF		300
 
-#define AF_SEARCH_COUNT			550 /* about 6s */
+#define AF_SEARCH_COUNT			200
 #define AE_STABLE_SEARCH_COUNT		7
 
 /* Sensor AF first,second window size.

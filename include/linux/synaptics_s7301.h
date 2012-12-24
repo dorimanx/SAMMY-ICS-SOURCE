@@ -50,8 +50,7 @@
 #define FUNC_ADDR_SIZE			6
 #define FUNC_ADDR_LAST			0xdd
 #define FUNC_ADDR_FIRST		0xe9
-#define PAGE_MAX				0X400
-#define NEXT_PAGE				0X100
+#define PAGE_MAX				0X100
 #define MAX_FUNC				0x55
 #define CHARGER_CONNECT_BIT	(0x1 << 5)
 
@@ -130,12 +129,6 @@ struct synaptics_platform_data {
 	int max_y;
 	int max_pressure;
 	int max_width;
-	bool swap_xy;
-	bool invert_x;
-	bool invert_y;
-#ifdef CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH
-	u8 palm_threshold;
-#endif
 	u16 x_line;
 	u16 y_line;
 	int (*set_power)(bool);
@@ -156,9 +149,6 @@ struct synaptics_drv_data {
 	struct function_info f11;
 	struct function_info f34;
 	struct function_info f54;
-#ifdef CONFIG_SEC_TOUCHSCREEN_SURFACE_TOUCH
-	struct function_info f51;
-#endif
 	struct delayed_work init_dwork;
 	struct delayed_work resume_dwork;
 	struct delayed_work noti_dwork;

@@ -1494,7 +1494,8 @@ struct cfg80211_ops {
 						enum nl80211_iftype type,
 						u32 *flags,
 						struct vif_params *params);
-	int	(*del_virtual_intf)(struct wiphy *wiphy, struct net_device *dev);
+	int	(*del_virtual_intf)(struct wiphy *wiphy,
+				    struct net_device *dev);
 	int	(*change_virtual_intf)(struct wiphy *wiphy,
 				       struct net_device *dev,
 				       enum nl80211_iftype type, u32 *flags,

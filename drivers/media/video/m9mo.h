@@ -371,6 +371,8 @@ struct m9mo_state {
 	int isp_mode;
 
 	int af_running;
+
+	int set_AF_LED_On;
 };
 
 /* Category */

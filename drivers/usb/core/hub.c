@@ -1374,12 +1374,8 @@ descriptor_error:
 	if (hdev->speed == USB_SPEED_HIGH)
 		highspeed_hubs++;
 
-	if (hub_configure(hub, endpoint) >= 0) {
-#if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_MDM_HSIC_PM)
-		usb_detect_quirks(hdev);
-#endif
+	if (hub_configure(hub, endpoint) >= 0)
 		return 0;
-	}
 
 	hub_disconnect (intf);
 	return -ENODEV;

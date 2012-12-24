@@ -23,8 +23,7 @@ static struct usb_device_id battery_notify_exception_table[] = {
 { USB_DEVICE(0x1519, 0x0020), }, /* HSIC Device */
 { USB_DEVICE(0x05c6, 0x904c), }, /* Qualcomm modem */
 { USB_DEVICE(0x05c6, 0x9008), }, /* Qualcomm modem */
-{ USB_DEVICE(0x08bb, 0x2704), }, /* TI USB Audio DAC 1 */
-{ USB_DEVICE(0x08bb, 0x27c4), }, /* TI USB Audio DAC 2 */
+{ USB_DEVICE(0x08bb, 0x27c4), }, /* TI USB Audio DAC */
 { }	/* Terminating entry */
 };
 
@@ -81,9 +80,7 @@ static int call_battery_notify(struct usb_device *dev, bool bOnOff)
 
 	/* Smart Dock hub must be skipped */
 	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x1a40 &&
-	     le16_to_cpu(dev->descriptor.idProduct) == 0x0101) ||
-	     (le16_to_cpu(dev->descriptor.idVendor) == 0x0424 &&
-	     le16_to_cpu(dev->descriptor.idProduct) == 0x2514)) {
+	     le16_to_cpu(dev->descriptor.idProduct) == 0x0101)) {
 		if (bOnOff)
 			is_smartdock = 1;
 		else

@@ -818,11 +818,11 @@ static int ath6kl_set_sdio_pm_caps(struct ath6kl *ar)
 	    !(flags & MMC_PM_KEEP_POWER))
 		return -EINVAL;
 #else
-	if (!(flags & MMC_PM_KEEP_POWER)){
+	if (!(flags & MMC_PM_KEEP_POWER)) {
 		printk("Q_M_D sdio suspend 1 pm_caps 0x%x\n", flags);
 		return -EINVAL;
 	}
-        printk("Q_M_D sdio suspend 2 pm_caps 0x%x\n", flags);
+	printk("Q_M_D sdio suspend 2 pm_caps 0x%x\n", flags);
 #endif
 	ret = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
 	if (ret) {
@@ -1354,7 +1354,7 @@ static int ath6kl_sdio_probe(struct sdio_func *func,
 	}
 
 	ret = ath6kl_core_init(ar);
-	ath6kl_info("Current ath6kl driver version is: 3.4.0.36\n");
+	ath6kl_info("Current ath6kl driver version is: 3.4.0.26\n");
 	if (ret) {
 		ath6kl_err("Failed to init ath6kl core\n");
 		goto err_core_alloc;

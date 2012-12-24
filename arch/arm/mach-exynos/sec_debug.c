@@ -35,9 +35,6 @@
 #if defined(CONFIG_SEC_MODEM_P8LTE)
 #include <linux/miscdevice.h>
 #endif
-#ifdef CONFIG_PROC_SEC_MEMINFO
-#include "linux/sec_meminfo.h"
-#endif
 /* klaatu - schedule log */
 #ifdef CONFIG_SEC_DEBUG_SCHED_LOG
 #define SCHED_LOG_MAX 2048
@@ -648,9 +645,6 @@ static int sec_debug_panic_handler(struct notifier_block *nb,
 	sec_debug_dump_stack();
 #if defined(CONFIG_SEC_MODEM_P8LTE)
 	sec_set_cp_upload();
-#endif
-#ifdef CONFIG_PROC_SEC_MEMINFO
-	sec_meminfo_print();
 #endif
 	sec_debug_hw_reset();
 

@@ -70,7 +70,6 @@ void mdm_peripheral_disconnect(struct mdm_modem_drv *mdm_drv);
 
 void notify_modem_fatal(void);
 void request_autopm_lock(int status);
-bool mdm_check_main_connect(const char *);
 #ifdef CONFIG_SIM_DETECT
 void get_sim_state_at_boot(void);
 #endif

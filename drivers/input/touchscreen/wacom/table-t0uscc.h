@@ -49,9 +49,9 @@ short TblY_PRight_44[] = {
 /* 0: Left, 1: Right */
 /* 0: Portrait 0, 1: Landscape 90, 2: Portrait 180 3: Landscape 270*/
 short tilt_offsetX[MAX_HAND][MAX_ROTATION] = \
-	{{0, -30, 20, 20, }, {20, 0, -30, 20, } };
+	{{-10, -30, 20, 30, }, {30, -10, -30, 20, } };
 short tilt_offsetY[MAX_HAND][MAX_ROTATION] = \
-	{{0, 0, -40, 20, }, {20, 0, 0, -40, }};
+	{{40, 0, -40, 20, }, {20, 40, 0, -40, }};
 
-char* tuning_version = "1109";
+char* tuning_version = "0925";
 char *tuning_model = "R950";

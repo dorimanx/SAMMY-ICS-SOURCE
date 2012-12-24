@@ -360,17 +360,13 @@ void max17047_set_rcomp(struct i2c_client *client, int state)
 	if (state) {
 		rst_cmd[1] = 0x00;
 #if defined(CONFIG_MACH_GC1_USA_VZW)
-		rst_cmd[0] = 0xC1;
+		rst_cmd[0] = 0xCD;
 #else
 		rst_cmd[0] = 0xCF;
 #endif
 	} else {
 		rst_cmd[1] = 0x00;
-#if defined(CONFIG_MACH_GC1_USA_VZW)
-		rst_cmd[0] = 0x8D;
-#else
 		rst_cmd[0] = 0x8F;
-#endif
 	}
 
 	max17047_i2c_write(client, MAX17047_REG_RCOMP, rst_cmd);

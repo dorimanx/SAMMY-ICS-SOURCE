@@ -400,10 +400,10 @@ int wacom_i2c_query(struct wacom_i2c *wac_i2c)
 		wac_feature->x_max = (u16) WACOM_MAX_COORD_X;
 		wac_feature->y_max = (u16) WACOM_MAX_COORD_Y;
 		wac_feature->pressure_max = (u16) WACOM_MAX_PRESSURE;
-#ifdef CONFIG_MACH_Q1_BD
-		wac_feature->fw_version = 0xFF;
-#else
+#ifdef CONFIG_MACH_T0
 		wac_feature->fw_version = 0;
+#else
+		wac_feature->fw_version = 0xFF;
 #endif
 	}
 #endif

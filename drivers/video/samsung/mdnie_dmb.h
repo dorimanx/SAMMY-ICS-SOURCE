@@ -445,7 +445,7 @@ static const unsigned short tune_natural_dmb[] = {
 };
 #endif
 
-struct mdnie_tuning_info tune_dmb[MODE_MAX] = {
+struct mdnie_tunning_info tune_dmb[MODE_MAX] = {
 	{"DYNAMIC_DMB",    tune_dynamic_dmb },
 	{"STANDARD_DMB",   tune_standard_dmb},
 #if !defined(CONFIG_FB_MDNIE_PWM)

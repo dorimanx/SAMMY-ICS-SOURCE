@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2011 Atheros Communications Inc.
  * Copyright (c) 2011-2012 Qualcomm Atheros, Inc.
@@ -28,15 +27,16 @@
 #include "hif-ops.h"
 #include "pm.h"
 
-unsigned int debug_mask = ATH6KL_DBG_BMI | ATH6KL_DBG_WMI | ATH6KL_DBG_SUSPEND | ATH6KL_DBG_BOOT | ATH6KL_DBG_WLAN_CFG | ATH6KL_DBG_TRC;
+unsigned int debug_mask = ATH6KL_DBG_BMI
+			 | ATH6KL_DBG_WLAN_CFG | ATH6KL_DBG_WLAN_CFG
+			 | ATH6KL_DBG_WMI;
 static unsigned int testmode;
 /* Set WOW mode as default suspend mode */
-static unsigned int suspend_mode = WLAN_POWER_STATE_WOW;
-static unsigned int wow_mode = WLAN_POWER_STATE_DEEP_SLEEP;
+static unsigned int suspend_mode = 3;
+static unsigned int wow_mode;
 static unsigned int uart_debug;
 static unsigned int ar6k_clock = 26000000;
 static unsigned short locally_administered_bit;
-static unsigned short lrssi = 10;
 static unsigned int heart_beat_poll = 2000;
 
 module_param(debug_mask, uint, 0644);
@@ -47,7 +47,6 @@ module_param(uart_debug, uint, 0644);
 module_param(ar6k_clock, uint, 0644);
 module_param(locally_administered_bit, ushort, 0644);
 module_param(heart_beat_poll, uint, 0644);
-module_param(lrssi, ushort, 0644);
 MODULE_PARM_DESC(heart_beat_poll, "Enable fw error detection periodic" \
 		 "polling. This also specifies the polling interval in msecs");
 
@@ -169,7 +168,10 @@ static const struct ath6kl_hw hw_list[] = {
  */
 #define WLAN_CONFIG_DISCONNECT_TIMEOUT 10
 
-extern  int android_readwrite_file(const char *filename, char *rbuf, const char *wbuf, size_t length);
+extern  int android_readwrite_file(const char *filename,
+				   char *rbuf,
+				   const char *wbuf,
+				   size_t length);
 
 #define ATH6KL_DATA_OFFSET    64
 struct sk_buff *ath6kl_buf_alloc(int size)
@@ -414,17 +416,12 @@ out:
 static int ath6kl_target_config_wlan_params(struct ath6kl *ar, int idx)
 {
 	int status = 0;
-
-	struct ath6kl_vif *vif = ath6kl_get_vif_by_index(ar, idx);
+	int ret;
+/*+Q_M_D*/
+#if 1
 	struct ath6kl_htcap htcap;
-
-	if (!vif) {
-		ath6kl_dbg(ATH6KL_DBG_BOOT,
-		"%s() vif_index=%d is not yet added\n",
-		 __func__, idx);
-		return 0;
-	}
-
+#endif
+/*-Q_M_D*/
 	/*
 	 * Configure the device for rx dot11 header rules. "0,0" are the
 	 * default values. Required if checksum offload is needed. Set
@@ -469,43 +466,36 @@ static int ath6kl_target_config_wlan_params(struct ath6kl *ar, int idx)
 		}
 
 	if (ar->p2p && (ar->vif_max == 1 || idx)) {
-		status = ath6kl_wmi_info_req_cmd(ar->wmi, idx,
+		ret = ath6kl_wmi_info_req_cmd(ar->wmi, idx,
 					      P2P_FLAG_CAPABILITIES_REQ |
 					      P2P_FLAG_MACADDR_REQ |
 					      P2P_FLAG_HMODEL_REQ);
-		if (status) {
+		if (ret) {
 			ath6kl_dbg(ATH6KL_DBG_TRC, "failed to request P2P "
 				   "capabilities (%d) - assuming P2P not "
-				   "supported\n", status);
+				   "supported\n", ret);
 			ar->p2p = 0;
 		}
 	}
 
 	if (ar->p2p && (ar->vif_max == 1 || idx)) {
 		/* Enable Probe Request reporting for P2P */
-		status = ath6kl_wmi_probe_report_req_cmd(ar->wmi, idx, true);
-		if (status) {
+		ret = ath6kl_wmi_probe_report_req_cmd(ar->wmi, idx, true);
+		if (ret) {
 			ath6kl_dbg(ATH6KL_DBG_TRC, "failed to enable Probe "
-				   "Request reporting (%d)\n", status);
+				   "Request reporting (%d)\n", ret);
 		}
 	}
-
-	if (vif->nw_type == INFRA_NETWORK) {
-		status = ath6kl_wmi_set_roam_lrssi_cmd(ar->wmi, lrssi);
-		if (status) {
-			ath6kl_dbg(ATH6KL_DBG_TRC,
-			"failed to set lrssi roam""(%d)\n", status);
-		}
-
-	}
-
-
+/*+ Q_M_D*/
+#if 1
 	htcap.ht_enable = true;
 	htcap.cap_info = (IEEE80211_HT_CAP_SUP_WIDTH_20_40 | \
 			IEEE80211_HT_CAP_SGI_20		 | \
 			IEEE80211_HT_CAP_SGI_40);
 	htcap.ampdu_factor = IEEE80211_HT_MAX_AMPDU_16K;
 	ath6kl_wmi_set_htcap_cmd(ar->wmi, idx, IEEE80211_BAND_5GHZ, &htcap);
+#endif
+/*- Q_M_D*/
 	return status;
 }
 
@@ -599,31 +589,6 @@ int ath6kl_configure_target(struct ath6kl *ar)
 	}
 
 	ath6kl_dbg(ATH6KL_DBG_TRC, "firmware mode set\n");
-
-#ifdef SS_3RD_INTF
-	param = 0;
-
-	if (ath6kl_bmi_read(ar,
-			    ath6kl_get_hi_item_addr(ar,
-			    HI_ITEM(hi_option_flag2)),
-			    (u8 *)&param, 4) != 0) {
-		ath6kl_err("bmi_read_memory for setting virtual"
-			   " MAC address failed\n");
-		return -EIO;
-	}
-
-	param |= HI_OPTION_VIRTU_MAC_ENABLE;
-
-	if (ath6kl_bmi_write(ar,
-			     ath6kl_get_hi_item_addr(ar,
-			     HI_ITEM(hi_option_flag2)),
-			     (u8 *)&param,
-			     4) != 0) {
-		ath6kl_err("bmi_write_memory for setting virtual"
-			   " MAC address failed\n");
-		return -EIO;
-	}
-#endif
 
 	/*
 	 * Hardcode the address use for the extended board data
@@ -1180,11 +1145,6 @@ out:
 static int ath6kl_fetch_firmwares(struct ath6kl *ar)
 {
 	int ret;
-
-#ifdef CONFIG_MACH_PX
-	if (testmode)
-		ar->hw.fw_board = AR6003_HW_2_1_1_TCMD_BOARD_DATA_FILE;
-#endif
 
 	ret = ath6kl_fetch_board_file(ar);
 	if (ret)
@@ -1875,7 +1835,7 @@ int ath6kl_core_init(struct ath6kl *ar)
 	struct ath6kl_bmi_target_info targ_info;
 	struct net_device *ndev;
 	int ret = 0, i;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
+#if 1 /*(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0))*/
 	struct net_device *ndev_p2p0;
 #endif
 	ar->ath6kl_wq = create_singlethread_workqueue("ath6kl");
@@ -2030,7 +1990,7 @@ int ath6kl_core_init(struct ath6kl *ar)
 	 */
 	memcpy(ndev->dev_addr, ar->mac_addr, ETH_ALEN);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
+#if 1 /*(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0))*/
 	rtnl_lock();
 	ndev_p2p0 = ath6kl_cfg80211_add_p2p0_iface(ar);
 	rtnl_unlock();

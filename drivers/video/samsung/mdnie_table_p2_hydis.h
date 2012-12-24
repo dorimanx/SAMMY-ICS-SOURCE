@@ -1593,7 +1593,7 @@ static const unsigned short tune_warm_outdoor_cabc_hydis[] = {
 	END_SEQ, 0x0000,
 };
 
-struct mdnie_tuning_info etc_table_hydis[CABC_MAX][OUTDOOR_MAX][TONE_MAX] = {
+struct mdnie_tunning_info etc_table_hydis[CABC_MAX][OUTDOOR_MAX][TONE_MAX] = {
 	{
 		{
 			{"NORMAL",		NULL},
@@ -1620,7 +1620,7 @@ struct mdnie_tuning_info etc_table_hydis[CABC_MAX][OUTDOOR_MAX][TONE_MAX] = {
 	},
 };
 
-struct mdnie_tuning_info_cabc tuning_table_hydis[CABC_MAX][MODE_MAX][SCENARIO_MAX] = {
+struct mdnie_tunning_info_cabc tunning_table_hydis[CABC_MAX][MODE_MAX][SCENARIO_MAX] = {
 {
 	{
 		{"DYNAMIC_UI",			tune_dynamic_ui_hydis,		0},
@@ -1683,7 +1683,7 @@ struct mdnie_tuning_info_cabc tuning_table_hydis[CABC_MAX][MODE_MAX][SCENARIO_MA
 },
 };
 
-struct mdnie_tuning_info camera_table_hydis[OUTDOOR_MAX] = {
+struct mdnie_tunning_info camera_table_hydis[OUTDOOR_MAX] = {
 	{"CAMERA",		tune_camera_hydis},
 	{"CAMERA_OUTDOOR",	tune_camera_outdoor_hydis},
 };

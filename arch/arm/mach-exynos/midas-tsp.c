@@ -1760,33 +1760,32 @@ int cyttsp4_hw_power(int on, int use_irq, int irq_gpio)
 	}
 
 	if (on) {
-		if (!regulator_is_enabled(regulator_vdd))
-			regulator_enable(regulator_vdd);
-		if (!regulator_is_enabled(regulator_avdd))
-			regulator_enable(regulator_avdd);
+		regulator_enable(regulator_vdd);
+		regulator_enable(regulator_avdd);
 
 		/* Enable the IRQ */
 		if (use_irq) {
 			enable_irq(gpio_to_irq(irq_gpio));
 			pr_debug("Enabled IRQ %d for TSP\n",
 				gpio_to_irq(irq_gpio));
-		}
-	} else {
+	  }
+
+	  } else {
 		/* Disable the IRQ */
 		if (use_irq) {
 			pr_debug("Disabling IRQ %d for TSP\n",
 				gpio_to_irq(irq_gpio));
-			disable_irq_nosync(gpio_to_irq(irq_gpio));
+			disable_irq(gpio_to_irq(irq_gpio));
 		}
 
-		if (regulator_is_enabled(regulator_vdd))
-			regulator_disable(regulator_vdd);
-		if (regulator_is_enabled(regulator_avdd))
-			regulator_disable(regulator_avdd);
+		regulator_disable(regulator_vdd);
+		regulator_disable(regulator_avdd);
 	}
 
 	regulator_put(regulator_vdd);
 	regulator_put(regulator_avdd);
+
+	mdelay(40);
 
 exit:
 	return ret;
