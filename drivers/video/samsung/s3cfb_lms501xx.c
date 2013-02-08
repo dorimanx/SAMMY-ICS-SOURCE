@@ -42,10 +42,9 @@
 #define DEFAULT_BRIGHTNESS		130
 #define DEFAULT_GAMMA_LEVEL		GAMMA_130CD
 
-#define LDI_ID_REG			0xDA
+#define LDI_ID_REG			0xD1
 #define LDI_ID_LEN			3
 
-#define DDI_STATUS_REG_PREVENTESD
 struct lcd_info {
 	unsigned int			bl;
 	unsigned int			candela;
@@ -77,9 +76,6 @@ struct lcd_info {
 #if defined(GPIO_OLED_DET)
 	struct delayed_work		oled_detection;
 	unsigned int			oled_detection_count;
-#endif
-#ifdef DDI_STATUS_REG_PREVENTESD
-	struct delayed_work		check_ddi;
 #endif
 	struct dsim_global		*dsim;
 };
@@ -122,7 +118,7 @@ struct LCD_BRIGHTNESS tbl_normal = {
 	.min_center = 110,
 	.center = 220,
 	.center_max = 320,
-	.max = 380,
+	.max = 400,
 };
 
 
@@ -133,8 +129,8 @@ struct LCD_BRIGHTNESS pwm_normal = {
 	.min = 0x0d,
 	.min_center = 0x37,
 	.center = 0x61,
-	.center_max = 0x7d,
-	.max = 0x9a,
+	.center_max = 0x81,
+	.max = 0xa2,
 };
 
 struct LCD_BRIGHTNESS tbl_cabc = {
@@ -197,7 +193,7 @@ static int convert_brightness(struct lcd_info *lcd, const int plat_bl)
 	int lcd_bl = plat_bl;
 	int lcd_cvt_pwm;
 
-	if (lcd->current_cabc || lcd->siop_enable) {
+	if (lcd->current_cabc) {
 		tbl = &tbl_cabc;
 		pwm = &pwm_cabc;
 	} else{
@@ -305,80 +301,15 @@ static irqreturn_t oled_detection_int(int irq, void *_lcd)
 }
 #endif
 
-#ifdef DDI_STATUS_REG_PREVENTESD
-#define DDI_DATA_LEG	0x02
-#define MIPI_RESP_DCS_RD_LONG 3 /* max read data > 3*/
-#define PW_MODE_REG_ADD 0x0a
-
-static int lms501xx_read_ddi_status_reg(struct lcd_info *lcd, u8 *buf);
-static void  lms501xx_reinitialize_lcd(void);
-static int lms501xx_write(struct lcd_info *lcd,
-			const unsigned char *seq, int len);
-static int lms501xx_ldi_init(struct lcd_info *lcd);
-static void check_ddi_work(struct work_struct *work)
-{
-	int ret;
-	unsigned char	ddi_status[DDI_DATA_LEG] = {0,};
-	unsigned long	ms_jiffies = msecs_to_jiffies(1000);
-	struct lcd_info *lcd =
-		container_of(work, struct lcd_info, check_ddi.work);
-
-	if (!lcd->connected) {
-		printk(KERN_INFO "%s, lcd is disconnected\n", __func__);
-		return;
-	}
-
-	/* check ldi status - should be ldi enabled.*/
-	if (lcd->ldi_enable != 1) {
-		printk(KERN_INFO "%s, ldi is disabled\n", __func__);
-		goto out;
-	}
-
-	ret = lms501xx_read_ddi_status_reg(lcd, ddi_status);
-
-	if (!ret) {
-		printk(KERN_INFO "%s, read failed\n", __func__);
-		set_dsim_hs_clk_toggle_count(0);
-		lms501xx_reinitialize_lcd();
-		return;
-	}
-
-	if (0x00 != ddi_status[1]) {
-		printk(KERN_INFO "%s, normal ddi_status 0x%02x\n",
-			__func__, ddi_status[1]);
-		if (lcd->oled_detection_count)
-			set_dsim_hs_clk_toggle_count(0);
-
-		lcd->oled_detection_count = 0;
-		ms_jiffies = msecs_to_jiffies(3000);
-
-	} else {
-		printk(KERN_INFO "%s, invalid ddi_status [1]=0x%02x\n",
-			__func__, ddi_status[1]);
-		if (lcd->oled_detection_count < 3) {
-			lcd->oled_detection_count++;
-			set_dsim_hs_clk_toggle_count(15);
-			ms_jiffies = msecs_to_jiffies(500);
-		} else {
-			set_dsim_hs_clk_toggle_count(0);
-			lms501xx_reinitialize_lcd();
-			return;
-		}
-	}
-out:
-	schedule_delayed_work(&lcd->check_ddi, ms_jiffies);
-	return;
-}
-#endif
 static int lms501xx_write(struct lcd_info *lcd,
 			const unsigned char *seq, int len)
 {
 	int size;
 	const unsigned char *wbuf;
 
-/*	if (!lcd->connected)
+	if (!lcd->connected)
 		return 0;
-*/
+
 	mutex_lock(&lcd->lock);
 
 	size = len;
@@ -407,8 +338,12 @@ static int _lms501xx_read(struct lcd_info *lcd,
 	if (!lcd->connected)
 		return ret;
 
-	if (lcd->dsim->ops->cmd_dcs_read)
-		ret = lcd->dsim->ops->cmd_dcs_read(lcd->dsim, addr, count, buf);
+	mutex_lock(&lcd->lock);
+
+	if (lcd->dsim->ops->cmd_read)
+		ret = lcd->dsim->ops->cmd_read(lcd->dsim, addr, count, buf);
+
+	mutex_unlock(&lcd->lock);
 
 	return ret;
 }
@@ -435,44 +370,6 @@ read_retry:
 
 	return ret;
 }
-#ifdef DDI_STATUS_REG_PREVENTESD
-static void lms501xx_dsim_set_eot_mode(struct lcd_info *lcd, int enable)
-{
-	unsigned int reg;
-
-	reg = readl(lcd->dsim->reg_base + S5P_DSIM_CONFIG);
-
-	if (enable)
-		reg |= 1<<28;	/*eot disable*/
-	else
-		reg &= ~(1<<28);
-
-	writel(reg, lcd->dsim->reg_base + S5P_DSIM_CONFIG);
-
-}
-static int lms501xx_read_ddi_status_reg(struct lcd_info *lcd, u8 *buf)
-{
-	int ret, i;
-	u8 read_data[MIPI_RESP_DCS_RD_LONG];
-
-	mutex_lock(&lcd->lock);
-
-	lms501xx_dsim_set_eot_mode(lcd, 1);
-
-	ret = lms501xx_read(lcd, PW_MODE_REG_ADD,
-		MIPI_RESP_DCS_RD_LONG, read_data, 1);
-
-	if (!ret) {
-		dev_info(&lcd->ld->dev, "read failed ddi_status_reg\n");
-	} else {
-		for (i = 0; i < DDI_DATA_LEG ; i++)
-			buf[i] = read_data[i];
-	}
-
-	mutex_unlock(&lcd->lock);
-	return ret;
-}
-#endif
 
 static int get_backlight_level_from_brightness(int brightness)
 {
@@ -511,8 +408,7 @@ static int lms501xx_set_cabc(struct lcd_info *lcd)
 	int ret = 0;
 
 	dev_info(&lcd->ld->dev, "%s - %d\n", __func__, lcd->current_cabc);
-	if ((lcd->current_cabc || lcd->siop_enable)
-			&& (lcd->candela > tbl_normal.min))
+	if (lcd->current_cabc || lcd->siop_enable)
 		lms501xx_write(lcd,
 			SEQ_SET_CABC_ON, ARRAY_SIZE(SEQ_SET_CABC_ON));
 	else
@@ -568,7 +464,7 @@ static int lms501xx_ldi_init(struct lcd_info *lcd)
 	lms501xx_write(lcd, SEQ_SET_POWER, ARRAY_SIZE(SEQ_SET_POWER));
 	mdelay(5);
 	lms501xx_write(lcd, SEQ_SLEEP_OUT, ARRAY_SIZE(SEQ_SLEEP_OUT));
-	msleep(160);
+	msleep(125);
 	lms501xx_write(lcd, SEQ_SET_RGB, ARRAY_SIZE(SEQ_SET_RGB));
 	lms501xx_write(lcd, SEQ_SET_CYC, ARRAY_SIZE(SEQ_SET_CYC));
 	lms501xx_write(lcd, SEQ_SET_VCOM, ARRAY_SIZE(SEQ_SET_VCOM));
@@ -813,8 +709,8 @@ static DEVICE_ATTR(siop_enable, 0664, siop_enable_show, siop_enable_store);
 static ssize_t lcd_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	char temp[16];
-	sprintf(temp, "SMD_LMS501KF10\n");
+	char temp[15];
+	sprintf(temp, "SMD_LMS501KF07\n");
 	strcat(buf, temp);
 	return strlen(buf);
 }
@@ -857,18 +753,6 @@ static ssize_t auto_brightness_store(struct device *dev,
 	return size;
 }
 
-static void lms501xx_dsim_set_lp_mode(struct lcd_info *lcd)
-{
-	unsigned int reg = readl(lcd->dsim->reg_base + S5P_DSIM_ESCMODE);
-
-	reg &= ~DSIM_TRANSFER_BYLCDC;
-	reg |= DSIM_TRANSFER_BYCPU;
-	writel(reg, lcd->dsim->reg_base + S5P_DSIM_ESCMODE);
-
-	reg = (readl(lcd->dsim->reg_base + S5P_DSIM_CLKCTRL)) & ~(0XFFFF);
-	reg |= DSIM_ESC_PRESCALER(0x0003);
-	writel(reg, lcd->dsim->reg_base + S5P_DSIM_CLKCTRL);
-}
 static DEVICE_ATTR(auto_brightness, 0644,
 		auto_brightness_show, auto_brightness_store);
 
@@ -893,15 +777,6 @@ void lms501xx_early_suspend(void)
 	lms501xx_power(lcd, FB_BLANK_POWERDOWN);
 	dev_info(&lcd->ld->dev, "-%s\n", __func__);
 
-#ifdef DDI_STATUS_REG_PREVENTESD
-	if (lcd->connected) {
-		bool ret;
-		ret = cancel_delayed_work(&lcd->check_ddi);
-		if (ret)
-			printk(KERN_INFO "%s, success - cancel delayed work\n",
-				__func__);
-	}
-#endif
 	return ;
 }
 
@@ -910,7 +785,6 @@ void lms501xx_late_resume(void)
 	struct lcd_info *lcd = g_lcd;
 
 	dev_info(&lcd->ld->dev, "+%s\n", __func__);
-	lms501xx_dsim_set_lp_mode(lcd);
 	lms501xx_power(lcd, FB_BLANK_UNBLANK);
 #if defined(GPIO_OLED_DET)
 	s3c_gpio_cfgpin(GPIO_OLED_DET, S3C_GPIO_SFN(0xf));
@@ -920,48 +794,19 @@ void lms501xx_late_resume(void)
 	dev_info(&lcd->ld->dev, "-%s\n", __func__);
 
 	set_dsim_lcd_enabled(1);
-#ifdef DDI_STATUS_REG_PREVENTESD
-	if (lcd->connected)
-		schedule_delayed_work(&lcd->check_ddi, msecs_to_jiffies(3000));
-
-#endif
 
 	return ;
 }
-#ifdef DDI_STATUS_REG_PREVENTESD
-static void  lms501xx_reinitialize_lcd(void)
-{
-	lms501xx_early_suspend();
-	s5p_dsim_early_suspend();
-	msleep(20);
-	s5p_dsim_late_resume();
-
-	msleep(20);
-	lms501xx_late_resume();
-	printk(KERN_INFO "%s, re-initialize LCD - Done\n", __func__);
-}
-#endif
 #endif
 
 static void lms501xx_read_id(struct lcd_info *lcd, u8 *buf)
 {
-	int ret = 0, i;
-	u8 read_data[LDI_ID_LEN];
+	int ret = 0;
 
-	lms501xx_dsim_set_eot_mode(lcd, 1);
-
-	mutex_lock(&lcd->lock);
-	ret = lms501xx_read(lcd, LDI_ID_REG, LDI_ID_LEN, read_data, 3);
-	mutex_unlock(&lcd->lock);
-
+	ret = lms501xx_read(lcd, LDI_ID_REG, LDI_ID_LEN, buf, 3);
 	if (!ret) {
 		lcd->connected = 0;
 		dev_info(&lcd->ld->dev, "panel is not connected well\n");
-	} else {
-		for (i = 0; i < LDI_ID_LEN ; i++)
-			buf[i] = read_data[i];
-		dev_info(&lcd->ld->dev, "%s - module's manufacturer ID : %02x\n",
-			__func__, read_data[1]);
 	}
 }
 
@@ -1037,8 +882,6 @@ static int lms501xx_probe(struct device *dev)
 
 	update_brightness(lcd, 1);
 
-	lms501xx_read_id(lcd, lcd->id);
-
 #if defined(GPIO_OLED_DET)
 	if (lcd->connected) {
 		INIT_DELAYED_WORK(&lcd->oled_detection, oled_detection_work);
@@ -1053,12 +896,6 @@ static int lms501xx_probe(struct device *dev)
 	}
 #endif
 
-#ifdef DDI_STATUS_REG_PREVENTESD
-	if (lcd->connected) {
-		INIT_DELAYED_WORK(&lcd->check_ddi, check_ddi_work);
-		schedule_delayed_work(&lcd->check_ddi, msecs_to_jiffies(20000));
-	}
-#endif
 	lcd_early_suspend = lms501xx_early_suspend;
 	lcd_late_resume = lms501xx_late_resume;
 

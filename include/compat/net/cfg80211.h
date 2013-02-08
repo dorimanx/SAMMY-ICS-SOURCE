@@ -256,7 +256,7 @@ struct ieee80211_supported_band {
  * @use_4addr: use 4-address frames
  */
 struct vif_params {
-	int use_4addr;
+       int use_4addr;
 };
 
 /**
@@ -416,7 +416,7 @@ struct beacon_parameters {
 	int probe_resp_len;
 	u8 *probe_resp;
 	enum nl80211_sta_capab_req_options sta_cap_req;
-	u8 auto_channel_select;
+	bool auto_channel_select;
 };
 
 /**
@@ -1494,8 +1494,7 @@ struct cfg80211_ops {
 						enum nl80211_iftype type,
 						u32 *flags,
 						struct vif_params *params);
-	int	(*del_virtual_intf)(struct wiphy *wiphy,
-				    struct net_device *dev);
+	int	(*del_virtual_intf)(struct wiphy *wiphy, struct net_device *dev);
 	int	(*change_virtual_intf)(struct wiphy *wiphy,
 				       struct net_device *dev,
 				       enum nl80211_iftype type, u32 *flags,
@@ -1686,14 +1685,10 @@ struct cfg80211_ops {
 
 	int	(*notify_btcoex)(struct wiphy *wiphy,
 					   u8 *buf, int len);
+	int	(*notify_p2p_flush)(struct wiphy *wiphy);
 
 	int	(*set_mac_acl)(struct wiphy *wiphy, struct net_device *dev,
 			       struct cfg80211_acl_params *params);
-
-	int     (*set_wow_mode)(struct wiphy *wiphy,
-				struct cfg80211_wowlan *wow);
-
-	int     (*clr_wow_mode)(struct wiphy *wiphy);
 };
 
 /*
@@ -2811,6 +2806,9 @@ void cfg80211_put_bss(struct cfg80211_bss *bss);
  */
 void cfg80211_unlink_bss(struct wiphy *wiphy, struct cfg80211_bss *bss);
 
+void cfg80211_unlink_allbss(struct wiphy *wiphy);
+
+
 /**
  * cfg80211_send_rx_auth - notification of processed authentication
  * @dev: network device
@@ -3245,25 +3243,6 @@ void cfg80211_new_sta(struct net_device *dev, const u8 *mac_addr,
 void cfg80211_del_sta(struct net_device *dev, const u8 *mac_addr, gfp_t gfp);
 
 /**
- * cfg80211_conn_failed - connection request failed notification
- *
- * @dev: the netdev
- * @mac_addr: the station's address
- * @reason: the reason for connection failure
- * @gfp: allocation flags
- *
- * Whenever a station tries to connect to an AP and if the station
- * could not connect to the AP as the AP has rejected the connection
- * for some reasons, this function is called.
- *
- * The reason for connection failure can be any of the value from
- * nl80211_connect_failed_reason enum
- */
-void cfg80211_conn_failed(struct net_device *dev, const u8 *mac_addr,
-			  enum nl80211_connect_failed_reason reason,
-			  gfp_t gfp);
-
-/**
  * cfg80211_rx_mgmt - notification of received, unprocessed management frame
  * @dev: network device
  * @freq: Frequency on which the frame was received in MHz
@@ -3428,6 +3407,16 @@ void cfg80211_report_obss_beacon(struct wiphy *wiphy,
  */
 void cfg80211_ch_switch_notify(struct net_device *dev, int freq,
 			       enum nl80211_channel_type type);
+
+/**
+ * cfg80211_priv_event - notify userspace about priv event
+ * @dev: the device the priv event was sent on
+ * @priv_event: event string
+ * @gfp: allocation flags
+ */
+void cfg80211_priv_event(struct net_device *dev, const char *priv_event,
+			   gfp_t gfp);
+
 
 /* Logging, debugging and troubleshooting/diagnostic helpers. */
 

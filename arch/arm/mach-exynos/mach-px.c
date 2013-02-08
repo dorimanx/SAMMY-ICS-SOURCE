@@ -2198,7 +2198,9 @@ static struct s3c_sdhci_platdata exynos4_hsmmc3_pdata __initdata = {
 	.cd_type = S3C_SDHCI_CD_EXTERNAL,
 	.clk_type = S3C_SDHCI_CLK_DIV_EXTERNAL,
 	.host_caps = MMC_CAP_4_BIT_DATA,
+#if defined(CONFIG_MACH_P8LTE)
 	.pm_flags = S3C_SDHCI_PM_IGNORE_SUSPEND_RESUME,
+#endif
 #ifdef CONFIG_MACH_PX
 	.ext_cd_init = register_wlan_status_notify,
 	.ext_pdev = register_wlan_pdev
@@ -3048,8 +3050,8 @@ static struct mpu3050_platform_data mpu3050_pdata = {
 	 * So X & Y are swapped and Y is negated.
 	 */
 #if defined(CONFIG_MACH_P8)
-	.orientation = {1, 0, 0,
-			0, -1, 0,
+	.orientation = {0, 1, 0,
+			1, 0, 0,
 			0, 0, -1},
 #elif defined(CONFIG_MACH_P8LTE)
 	.orientation = {0, -1, 0,
@@ -3080,8 +3082,8 @@ static struct mpu3050_platform_data mpu3050_pdata = {
 		 * So X & Y are both negated.
 		 */
 #if defined(CONFIG_MACH_P8)
-		.orientation = {1, 0, 0,
-				0, -1, 0,
+		.orientation = {0, 1, 0,
+				1, 0, 0,
 				0, 0, -1},
 #elif defined(CONFIG_MACH_P8LTE)
 		.orientation = {0, 1, 0,
@@ -4326,7 +4328,7 @@ static u8 t8_config_e[] = { GEN_ACQUISITIONCONFIG_T8,
 };
 
 static u8 t9_config_e[] = { TOUCH_MULTITOUCHSCREEN_T9,
-	139, 0, 0, 24, 32, 0, 176, MXT768E_THRESHOLD_BATT, 2, 2,
+	139, 0, 0, 24, 32, 0, 176, MXT768E_THRESHOLD_BATT, 2, 1,
 	10, 10, 1, 13, MXT768E_MAX_MT_FINGERS, 20, 40, 20, 31, 3,
 	255, 4, MXT768E_XLOCLIP_BATT, MXT768E_XHICLIP_BATT,
 	MXT768E_YLOCLIP_BATT, MXT768E_YHICLIP_BATT,
@@ -4443,9 +4445,9 @@ static struct mxt_platform_data mxt_data = {
 	.gpio_read_done = GPIO_TSP_INT_18V,
 	.config = mxt768e_config,
 	.min_x = 0,
-	.max_x = 799,
+	.max_x = 1279,
 	.min_y = 0,
-	.max_y = 1279,
+	.max_y = 799,
 	.min_z = 0,
 	.max_z = 255,
 	.min_w = 0,
@@ -6476,11 +6478,11 @@ static int check_sec_keyboard_dock(bool attached)
 
 /* call 30pin func. from sec_keyboard */
 static struct sec_30pin_callbacks *s30pin_callbacks;
-static int noti_sec_univ_kbd_dock(unsigned int code)
+static int noti_sec_univ_kbd_dock(bool attached)
 {
 	if (s30pin_callbacks && s30pin_callbacks->noti_univ_kdb_dock)
 		return s30pin_callbacks->
-			noti_univ_kdb_dock(s30pin_callbacks, code);
+			noti_univ_kdb_dock(s30pin_callbacks, attached);
 	return 0;
 }
 

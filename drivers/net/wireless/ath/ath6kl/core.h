@@ -72,8 +72,49 @@
 /* Channel dwell time in fg scan */
 #define ATH6KL_FG_SCAN_INTERVAL         50 /* in ms */
 
+#if 0 // by bbelief
 /* Channel dwell time in fg scan */
 #define ATH6KL_FG_SCAN_INTERVAL		50 /* in ms */
+#else
+
+/*
+ * background scan interval (sec)
+ * disable background scan interval: 65535
+ * default: 60 sec
+ * to restore the default value: 0
+ *
+ * For P2P and PMKID cache, bg scan should be enabled.
+ */
+#define WLAN_CONFIG_BG_SCAN_INTERVAL         65535
+
+/*
+ * maximum active dwell time (ms)
+ * default: 20 ms
+ * to restore the default value: 0
+ */
+#define WLAN_CONFIG_MAXACT_CHDWELL_TIME      45
+/*
+ * passive dwell time (ms)
+ * default: 50 ms
+ * to restore the default value: 0
+ */
+#define WLAN_CONFIG_PASSIVE_CHDWELL_TIME     50
+
+#define WMI_SHORTSCANRATIO_DEFAULT           3
+
+#define DEFAULT_SCAN_CTRL_FLAGS              (CONNECT_SCAN_CTRL_FLAGS | \
+			SCAN_CONNECTED_CTRL_FLAGS | ACTIVE_SCAN_CTRL_FLAGS | \
+			ROAM_SCAN_CTRL_FLAGS | ENABLE_AUTO_CTRL_FLAGS)
+
+/*
+ * 0: to disable sending ps-poll in TIM interrupt
+ * 1: to send one ps-poll (the default)
+ */
+#define WLAN_CONFIG_PSPOLL_NUM              1
+
+#define WLAN_CONFIG_MCAST_RATE              60
+
+#endif
 
 /* includes also the null byte */
 #define ATH6KL_FIRMWARE_MAGIC               "QCA-ATH6KL"
@@ -559,6 +600,9 @@ enum ath6kl_vif_state {
 	NETDEV_MCAST_ALL_ON,
 	NETDEV_MCAST_ALL_OFF,
 	SCHED_SCANNING,
+#if 1 // by bbelief
+	SLEEP_POLICY_ENABLED,
+#endif
 };
 
 struct ath6kl_vif {
@@ -616,6 +660,11 @@ struct ath6kl_vif {
 	u16 rsn_capab;
 
 	struct list_head mc_filter;
+#if 1 // by bbelief
+	struct wmi_scan_params_cmd scparams;
+	unsigned int pspoll_num;
+	u16 mcastrate;
+#endif
 };
 
 #define WOW_LIST_ID		0
@@ -633,6 +682,9 @@ enum ath6kl_dev_state {
 	SKIP_SCAN,
 	ROAM_TBL_PEND,
 	FIRST_BOOT,
+#if 0 // by bbelief
+	WOW_RESUME_PRINT,
+#endif
 };
 
 enum ath6kl_state {
@@ -785,18 +837,20 @@ struct ath6kl {
 
 	struct ath6kl_btcoex btcoex_info;
 
-	unsigned int psminfo;
-
 	struct ath6kl_fw_recovery {
-		bool enable;
-		struct work_struct recovery_work;
-		unsigned long err_reason;
-		unsigned long hb_poll;
-		struct timer_list hb_timer;
-		u32 seq_num;
-		bool hb_pending;
-		u8 hb_misscnt;
-	} fw_recovery;
+			bool enable;
+			struct work_struct recovery_work;
+			unsigned long err_reason;
+			unsigned long hb_poll;
+			struct timer_list hb_timer;
+			u32 seq_num;
+			bool hb_pending;
+			u8 hb_misscnt;
+		} fw_recovery;
+
+#if 1 // by bbelief
+	unsigned int psminfo;
+#endif
 
 #ifdef CONFIG_ATH6KL_DEBUG
 	struct {
@@ -934,13 +988,16 @@ int ath6kl_init_hw_start(struct ath6kl *ar);
 int ath6kl_init_hw_stop(struct ath6kl *ar);
 void ath6kl_check_wow_status(struct ath6kl *ar, struct sk_buff *skb,
 			     bool is_event_pkt);
-void ath6kl_sdio_init_platform(void);
-void ath6kl_sdio_exit_platform(void);
+#ifdef CONFIG_MACH_PX
+void ath6kl_sdio_init_c210(void);
+void ath6kl_sdio_exit_c210(void);
+#else
+void ath6kl_sdio_init_msm(void);
+void ath6kl_sdio_exit_msm(void);
+#endif
+//void ath6kl_mangle_mac_address(struct ath6kl *ar);
+
 void ath6kl_mangle_mac_address(struct ath6kl *ar, u8 locally_administered_bit);
-int android_readwrite_file(const char *filename,
-			   char *rbuf,
-			   const char *wbuf,
-			   size_t length);
 
 int ath6kl_wait_for_init_comp(void);
 void ath6kl_notify_init_done(void);

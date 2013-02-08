@@ -231,10 +231,6 @@ void max77693_muic_usb_cb(u8 usb_mode)
 			host_noti_pdata->powered_booster(1);
 #endif
 #ifdef CONFIG_USB_EHCI_S5P
-#if defined(CONFIG_MACH_T0_CHN_CTC) || \
-	defined(CONFIG_MACH_T0_CHN_CMCC)
-		msleep(40);
-#endif
 		pm_runtime_get_sync(&s5p_device_ehci.dev);
 #endif
 #ifdef CONFIG_USB_OHCI_S5P
@@ -332,9 +328,7 @@ int max77693_muic_charger_cb(enum cable_type_muic cable_type)
 
 #if defined(CONFIG_MACH_SLP_NAPLES) || defined(CONFIG_MACH_MIDAS) \
 		|| defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_T0)
-#ifndef CONFIG_TOUCHSCREEN_CYPRESS_TMA46X
 	tsp_charger_infom(is_cable_attached);
-#endif
 #endif
 #ifdef CONFIG_JACK_MON
 	jack_event_handler("charger", is_cable_attached);

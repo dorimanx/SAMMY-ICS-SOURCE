@@ -1290,16 +1290,13 @@ struct lcd_info *g_lcd;
 void s6e8ax0_early_suspend(void)
 {
 	struct lcd_info *lcd = g_lcd;
-	int err = 0;
 
 	set_dsim_lcd_enabled(0);
 
 	dev_info(&lcd->ld->dev, "+%s\n", __func__);
 #if defined(GPIO_OLED_DET)
 	disable_irq(lcd->irq);
-	err = gpio_request(GPIO_OLED_DET, "OLED_DET");
-	if (err)
-		pr_err("fail to request gpio RESET_REQ_N : %d\n", err);
+	gpio_request(GPIO_OLED_DET, "OLED_DET");
 	s3c_gpio_cfgpin(GPIO_OLED_DET, S3C_GPIO_OUTPUT);
 	s3c_gpio_setpull(GPIO_OLED_DET, S3C_GPIO_PULL_NONE);
 	gpio_direction_output(GPIO_OLED_DET, GPIO_LEVEL_LOW);

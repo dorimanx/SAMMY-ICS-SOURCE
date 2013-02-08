@@ -101,67 +101,29 @@ err:
 	return err_value;
 }
 
-static int convert_adc_to_subtemper(struct sec_subtherm_info *info,
-				int adc_data)
+static int convert_adc_to_subtemper(struct sec_subtherm_info *info, unsigned int adc)
 {
-	int adc_value;
-	int low, mid, high;
-	struct sec_therm_adc_table *temper_table;
-
-	low = mid = high = 0;
+	int low = 0;
+	int high = 0;
+	int mid = 0;
 
 	if (!info->pdata->adc_table || !info->pdata->adc_arr_size) {
 		/* using fake temp */
-		adc_value = 300;
-		dev_dbg(info->dev, " %s : fake temp\n", __func__);
-		goto out;
+		return 300;
 	}
 
-	temper_table = info->pdata->adc_table;
 	high = info->pdata->adc_arr_size - 1;
-
-	/* Out of table range */
-	if (adc_data <= temper_table[low].adc) {
-		adc_value = temper_table[low].temperature;
-		dev_dbg(info->dev, " %s : Out of table range\n", __func__);
-		goto out;
-	} else if (adc_data >= temper_table[high].adc) {
-		adc_value = temper_table[high].temperature;
-		dev_dbg(info->dev, " %s : Out of table range\n", __func__);
-		goto out;
-	}
 
 	while (low <= high) {
 		mid = (low + high) / 2;
-		if (temper_table[mid].adc > adc_data)
+		if (info->pdata->adc_table[mid].adc > adc)
 			high = mid - 1;
-		else if (temper_table[mid].adc < adc_data)
+		else if (info->pdata->adc_table[mid].adc < adc)
 			low = mid + 1;
 		else
 			break;
 	}
-	adc_value = temper_table[mid].temperature;
-
-	/* high resolution */
-	if (adc_data < temper_table[mid].adc) {
-		adc_value = temper_table[mid].temperature +
-			((temper_table[mid-1].temperature -
-			  temper_table[mid].temperature) *
-			(temper_table[mid].adc - adc_data) /
-			(temper_table[mid].adc - temper_table[mid-1].adc));
-	} else {
-		adc_value = temper_table[mid].temperature -
-			((temper_table[mid].temperature -
-			  temper_table[mid+1].temperature) *
-			(adc_data - temper_table[mid].adc) /
-			(temper_table[mid+1].adc - temper_table[mid].adc));
-	}
-
-out:
-	dev_dbg(info->dev, " %s: adc data(%d), adc temperature(%d)\n", __func__,
-					adc_data, adc_value);
-
-	return adc_value;
+	return info->pdata->adc_table[mid].temperature;
 }
 
 static void notify_change_of_subtemperature(struct sec_subtherm_info *info)

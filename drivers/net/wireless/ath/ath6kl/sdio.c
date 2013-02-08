@@ -813,28 +813,22 @@ static int ath6kl_set_sdio_pm_caps(struct ath6kl *ar)
 	flags = sdio_get_host_pm_caps(func);
 
 	ath6kl_dbg(ATH6KL_DBG_SUSPEND, "sdio suspend pm_caps 0x%x\n", flags);
-#if 0
+
 	if (!(flags & MMC_PM_WAKE_SDIO_IRQ) ||
 	    !(flags & MMC_PM_KEEP_POWER))
 		return -EINVAL;
-#else
-	if (!(flags & MMC_PM_KEEP_POWER)) {
-		printk("Q_M_D sdio suspend 1 pm_caps 0x%x\n", flags);
-		return -EINVAL;
-	}
-	printk("Q_M_D sdio suspend 2 pm_caps 0x%x\n", flags);
-#endif
+
 	ret = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
 	if (ret) {
 		ath6kl_err("set sdio keep pwr flag failed: %d\n", ret);
 		return ret;
 	}
-#if 0
+
 	/* sdio irq wakes up host */
 	ret = sdio_set_host_pm_flags(func, MMC_PM_WAKE_SDIO_IRQ);
 	if (ret)
 		ath6kl_err("set sdio wake irq flag failed: %d\n", ret);
-#endif
+
 	return ret;
 }
 
@@ -1354,7 +1348,6 @@ static int ath6kl_sdio_probe(struct sdio_func *func,
 	}
 
 	ret = ath6kl_core_init(ar);
-	ath6kl_info("Current ath6kl driver version is: 3.4.0.26\n");
 	if (ret) {
 		ath6kl_err("Failed to init ath6kl core\n");
 		goto err_core_alloc;
@@ -1415,10 +1408,11 @@ static struct sdio_driver ath6kl_sdio_driver = {
 static int __init ath6kl_sdio_init(void)
 {
 	int ret;
-
-	ath6kl_sdio_init_platform();
-
-	init_waitqueue_head(&init_wq);
+#ifdef CONFIG_MACH_PX
+    ath6kl_sdio_init_c210();
+#else
+	ath6kl_sdio_init_msm();
+#endif
 
 	ret = sdio_register_driver(&ath6kl_sdio_driver);
 	if (ret) {
@@ -1434,7 +1428,11 @@ static int __init ath6kl_sdio_init(void)
 static void __exit ath6kl_sdio_exit(void)
 {
 	sdio_unregister_driver(&ath6kl_sdio_driver);
-	ath6kl_sdio_exit_platform();
+#ifdef CONFIG_MACH_PX
+	ath6kl_sdio_exit_c210();
+#else
+	ath6kl_sdio_exit_msm();
+#endif
 }
 
 module_init(ath6kl_sdio_init);

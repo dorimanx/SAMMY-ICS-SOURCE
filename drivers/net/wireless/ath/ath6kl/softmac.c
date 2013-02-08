@@ -17,7 +17,7 @@
 #include "core.h"
 #include "debug.h"
 #include <linux/vmalloc.h>
-#if 1
+#if 1 // by bbelief
 #include <linux/random.h>
 #endif
 #define MAC_FILE "ath6k/AR6003/hw2.1.1/softmac"
@@ -66,7 +66,7 @@ static void ath6kl_calculate_crc(u32 target_type, u8 *data, size_t len)
 }
 
 #ifdef CONFIG_MACH_MSM7X27A_FFA
-#if 0
+#if 0 // by bbelief
 static int ath6kl_fetch_nvmac_info(struct ath6kl *ar)
 {
 	char softmac_filename[256];
@@ -231,7 +231,7 @@ static int ath6kl_fetch_mac_file(struct ath6kl *ar)
 }
 #endif
 
-#if 0
+#if 0 // by bbelief
 void ath6kl_mangle_mac_address(struct ath6kl *ar)
 #else
 void ath6kl_mangle_mac_address(struct ath6kl *ar, u8 locally_administered_bit)
@@ -304,7 +304,8 @@ void ath6kl_mangle_mac_address(struct ath6kl *ar, u8 locally_administered_bit)
 	kfree(ath6kl_softmac);
 #endif
 
-#if 1
+#if 1 // by bbelief ; should I disable this ??
+	if (locally_administered_bit)		ptr_mac[0] |= 0x02;
 	if (locally_administered_bit)		ptr_mac[0] |= 0x02;
 #endif
 

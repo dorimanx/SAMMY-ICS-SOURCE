@@ -368,6 +368,7 @@ void request_active_lock_release(const char *name)
 	pr_info("%s\n", __func__);
 	if (pm_data)
 		wake_unlock(&pm_data->l2_wake);
+
 }
 
 void request_boot_lock_set(const char *name)
@@ -405,11 +406,6 @@ void set_host_stat(const char *name, enum pwr_stat status)
 		return;
 	}
 
-	/* crash during kernel suspend/resume, do not control host ready pin */
-	/* and it has to be controlled when host driver initialized again */
-	if (pm_data->block_request && pm_data->shutdown)
-		return;
-
 	if (pm_data->gpio_host_ready) {
 		pr_info("dev rdy val = %d\n",
 				gpio_get_value(pm_data->gpio_device_ready));
@@ -436,10 +432,6 @@ int wait_dev_pwr_stat(const char *name, enum pwr_stat status)
 		pr_err("%s:no pm device(%s) exist\n", __func__, name);
 		return -ENODEV;
 	}
-
-	/* in shutdown(including modem fatal) do not need to wait dev ready */
-	if (pm_data->shutdown)
-		return 0;
 
 	pr_info("%s:[%s]...\n", __func__, status ? "PWR ON" : "PWR OFF");
 
@@ -559,7 +551,6 @@ int register_udev_to_pm_dev(const char *name, struct usb_device *udev)
 		pm_data->udev = udev;
 		atomic_set(&pm_data->pmlock_cnt, 0);
 		usb_disable_autosuspend(udev);
-		pm_data->shutdown = false;
 #ifdef CONFIG_SIM_DETECT
 		get_sim_state_at_boot();
 #endif

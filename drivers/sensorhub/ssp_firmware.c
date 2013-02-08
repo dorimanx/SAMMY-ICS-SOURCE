@@ -14,7 +14,7 @@
  */
 #include "ssp.h"
 
-#define SSP_FIRMWARE_REVISION		102900
+#define SSP_FIRMWARE_REVISION		92200
 
 /* Bootload mode cmd */
 #define BL_FW_NAME			"ssp.fw"
@@ -255,9 +255,9 @@ int update_mcu_bin(struct ssp_data *data)
 	data->client->addr = APP_SLAVE_ADDR;
 
 	if (iRet < 0)
-		data->bSspShutdown = true;
+		data->bBinaryChashed = true;
 	else
-		data->bSspShutdown = false;
+		data->bBinaryChashed = false;
 
 	return iRet;
 }
@@ -273,7 +273,7 @@ int update_crashed_mcu_bin(struct ssp_data *data)
 	msleep(SSP_SW_RESET_TIME);
 
 	data->client->addr = APP_SLAVE_ADDR;
-	data->bSspShutdown = true;
+	data->bBinaryChashed = true;
 	return iRet;
 }
 

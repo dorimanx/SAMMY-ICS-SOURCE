@@ -69,11 +69,6 @@ void ts2utc(struct timespec *ts, struct utc_time *utc)
 	utc->msec = (ts->tv_nsec > 0) ? (ts->tv_nsec / 1000000) : 0;
 }
 
-int ns2us(long ns)
-{
-	return (ns > 0) ? (ns / 1000) : 0;
-}
-
 void get_utc_time(struct utc_time *utc)
 {
 	struct timespec ts;

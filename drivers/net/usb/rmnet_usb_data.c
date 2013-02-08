@@ -557,12 +557,8 @@ static int rmnet_usb_probe(struct usb_interface *iface,
 
 	status = rmnet_usb_ctrl_probe(iface, unet->status,
 		(struct rmnet_ctrl_dev *)unet->data[1]);
-	if (status) {
-		if (status == -EPIPE)
-			return status;
-		else
-			goto out;
-	}
+	if (status)
+		goto out;
 
 	status = rmnet_usb_data_debugfs_init(unet);
 	if (status)

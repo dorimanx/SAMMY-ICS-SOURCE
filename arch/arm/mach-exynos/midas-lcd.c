@@ -515,8 +515,8 @@ static struct s3cfb_lcd ea8061 = {
 	.name = "ea8061",
 	.height = 1280,
 	.width = 720,
-	.p_width = 69,
-	.p_height = 123,
+	.p_width = 74,
+	.p_height = 131,
 	.bpp = 24,
 	.freq = 58,
 
@@ -556,8 +556,8 @@ static struct s3cfb_lcd s6evr02 = {
 	.name = "s6evr02",
 	.height = 1280,
 	.width = 720,
-	.p_width = 69,
-	.p_height = 123,
+	.p_width = 74,
+	.p_height = 131,
 	.bpp = 24,
 	.freq = 58,
 	.freq_limit = 41,
@@ -595,8 +595,8 @@ static struct s3cfb_lcd ea8061 = {
 	.name = "ea8061",
 	.height = 1280,
 	.width = 720,
-	.p_width = 69,
-	.p_height = 123,
+	.p_width = 74,
+	.p_height = 131,
 	.bpp = 24,
 	.freq = 58,
 
@@ -723,7 +723,6 @@ static struct s3cfb_lcd s6d6aa1 = {
 	.bpp = 24,
 
 	.freq = 60,
-	.freq_limit = 51,
 
 	/* minumun value is 0 except for wr_act time. */
 	.cpu_timing = {
@@ -742,7 +741,7 @@ static struct s3cfb_lcd s6d6aa1 = {
 		.v_bp = 2,
 		.v_bpe = 1,
 		.v_sw = 2,
-		.cmd_allow_len = 11,	 /* v_fp=stable_vfp + cmd_allow_len+ mask_len*/
+		.cmd_allow_len = 11,	 /* v_fp=stable_vfp + cmd_allow_len */
 		.stable_vfp = 2,
 	},
 
@@ -782,9 +781,8 @@ static struct s3cfb_lcd lms501xx = {
 		.v_bp = 12,
 		.v_bpe = 1,
 		.v_sw = 4,
-		.cmd_allow_len = 7,
-		/* v_fp=stable_vfp + cmd_allow_len */
-		.stable_vfp = 1,
+		.cmd_allow_len = 6,	 /* v_fp=stable_vfp + cmd_allow_len */
+		.stable_vfp = 2,
 	},
 	.polarity = {
 		.rise_vclk = 1,
@@ -1135,9 +1133,9 @@ void __init mipi_fb_init(void)
 #elif defined(CONFIG_FB_S5P_LMS501XX)
 	dsim_lcd_info->lcd_panel_info = (void *)&lms501xx;
 	dsim_pd->dsim_info->e_no_data_lane = DSIM_DATA_LANE_2;
-	/* 428Mbps */
+	/* 440Mbps */
 	dsim_pd->dsim_info->p = 3;
-	dsim_pd->dsim_info->m = 107;
+	dsim_pd->dsim_info->m = 110;
 	dsim_pd->dsim_info->s = 1;
 #else
 	/* 500Mbps */

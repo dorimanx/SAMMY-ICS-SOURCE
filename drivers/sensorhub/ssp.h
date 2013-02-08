@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2012, Samsung Electronics Co. Ltd. All Rights Reserved.
+ *  Copyright (C) 2011, Samsung Electronics Co. Ltd. All Rights Reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -36,16 +36,22 @@
 #include "ssp_sensorhub.h"
 #endif
 
+#define SSP_DBG		1
+
 #define SUCCESS		1
 #define FAIL		0
 #define ERROR		-1
 
+#define CANCELATION_THRESHOLD	9
+#define DEFAULT_THRESHOLD		13
+#define OTHERS_OCTA_DEFAULT_THRESHOLD	14
+#define WHITE_OCTA_DEFAULT_THRESHOLD	13
+#define GRAY_OCTA_DEFAULT_THRESHOLD	12
+
 #define FACTORY_DATA_MAX	39
-
-#define SSP_DBG		1
-
 #if SSP_DBG
 #define SSP_FUNC_DBG 1
+#define SSP_DATA_DBG 0
 
 #define ssp_dbg(dev, format, ...) do { \
 	printk(KERN_INFO dev, format, ##__VA_ARGS__); \
@@ -60,6 +66,14 @@
 	} while (0)
 #else
 #define func_dbg()
+#endif
+
+#if SSP_DATA_DBG
+#define data_dbg(dev, format, ...) do { \
+	printk(KERN_INFO dev, format, ##__VA_ARGS__); \
+	} while (0)
+#else
+#define data_dbg(dev, format, ...)
 #endif
 
 #define SSP_SW_RESET_TIME	3000
@@ -222,15 +236,6 @@ struct ssp_data {
 	struct input_dev *light_input_dev;
 	struct input_dev *prox_input_dev;
 
-	struct device *sen_dev;
-	struct device *mcu_device;
-	struct device *acc_device;
-	struct device *gyro_device;
-	struct device *mag_device;
-	struct device *prs_device;
-	struct device *prox_device;
-	struct device *light_device;
-
 	struct i2c_client *client;
 	struct wake_lock ssp_wake_lock;
 	struct miscdevice akmd_device;
@@ -240,18 +245,26 @@ struct ssp_data {
 	struct calibraion_data accelcal;
 	struct calibraion_data gyrocal;
 	struct sensor_value buf[SENSOR_MAX];
+	struct device *sen_dev;
+	struct device *mcu_device;
+	struct device *acc_device;
+	struct device *gyro_device;
+	struct device *mag_device;
+	struct device *prs_device;
+	struct device *prox_device;
+	struct device *light_device;
 
-	bool bSspShutdown;
+	bool bCheckShutdown;
 	bool bCheckSuspend;
 	bool bDebugEnabled;
 	bool bMcuIRQTestSuccessed;
 	bool bAccelAlert;
 	bool bProximityRawEnabled;
 	bool bBarcodeEnabled;
+	bool bBinaryChashed;
 
 	unsigned char uProxCanc;
-	unsigned char uProxHiThresh;
-	unsigned char uProxLoThresh;
+	unsigned char uProxThresh;
 	unsigned char uFuseRomData[3];
 	unsigned char uFactorydata[FACTORY_DATA_MAX];
 	char *pchLibraryBuf;
@@ -259,18 +272,17 @@ struct ssp_data {
 	int iIrq;
 	int iLibraryLength;
 	int aiCheckStatus[SENSOR_MAX];
+	int iIrqWakeCnt;
 
-	unsigned int uIrqFailCnt;
 	unsigned int uSsdFailCnt;
 	unsigned int uResetCnt;
+	unsigned int uI2cFailCnt;
 	unsigned int uInstFailCnt;
 	unsigned int uTimeOutCnt;
 	unsigned int uIrqCnt;
 	unsigned int uBusyCnt;
-	unsigned int uMissSensorCnt;
-
 	unsigned int uGyroDps;
-	unsigned int uSensorState;
+	unsigned int uAliveSensorDebug;
 	unsigned int uCurFirmRev;
 	unsigned int uFactoryProxAvg[4];
 	unsigned int uFactorydataReady;
@@ -338,7 +350,7 @@ int get_chipid(struct ssp_data *);
 int get_fuserom_data(struct ssp_data *);
 int set_sensor_position(struct ssp_data *);
 void sync_sensor_state(struct ssp_data *);
-void set_proximity_threshold(struct ssp_data *, unsigned char, unsigned char);
+void set_proximity_threshold(struct ssp_data *);
 void set_proximity_barcode_enable(struct ssp_data *, bool);
 unsigned int get_delay_cmd(u8);
 unsigned int get_msdelay(int64_t);
@@ -363,7 +375,8 @@ void reset_mcu(struct ssp_data *);
 void convert_acc_data(s16 *);
 int sensors_register(struct device *, void *,
 	struct device_attribute*[], char *);
-void sensors_unregister(struct device *, struct device_attribute*[]);
+void sensors_unregister(struct device *,
+	struct device_attribute*[]);
 ssize_t mcu_reset_show(struct device *, struct device_attribute *, char *);
 ssize_t mcu_revision_show(struct device *, struct device_attribute *, char *);
 ssize_t mcu_update_show(struct device *, struct device_attribute *, char *);

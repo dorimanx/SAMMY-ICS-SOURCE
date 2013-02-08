@@ -63,11 +63,12 @@ extern char proximity_sensor_detection;
 /* prototype */
 int opt_i2c_read(u8 reg, unsigned char *rbuf, int len);
 int opt_i2c_write(u8 reg, u8 *val);
+int lightsensor_get_adcvalue(void);
 int is_gp2a030a(void);
 
 struct gp2a_platform_data {
 	int (*gp2a_led_on) (bool);
 	int p_out; /* proximity-sensor-output gpio */
-	unsigned long (*gp2a_get_threshold)(u8 *);
+	unsigned long (*gp2a_get_threshold)(void);
 };
 #endif

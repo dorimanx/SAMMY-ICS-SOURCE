@@ -238,17 +238,12 @@ static void check_ddi_work(struct work_struct *work)
 		goto out;
 	}
 
-	if (lcd->current_bl < GAMMA_100CD) {
-		printk(KERN_INFO "%s, bl=%d\n", __func__, lcd->current_bl);
-		goto out;
-	}
-
 	ret = s6e8ax0_read_ddi_status_reg(lcd, ddi_status);
 	if (!ret) {
 		printk(KERN_INFO "%s, read failed\n", __func__);
 		set_dsim_hs_clk_toggle_count(0);
 		s3cfb_reinitialize_lcd();
-		return;
+		ms_jiffies = msecs_to_jiffies(3000);
 	}
 
 	if (0x00 != ddi_status[0]) {/*0x9c*/
@@ -269,7 +264,7 @@ static void check_ddi_work(struct work_struct *work)
 		} else {
 			set_dsim_hs_clk_toggle_count(0);
 			s3cfb_reinitialize_lcd();
-			return;
+			ms_jiffies = msecs_to_jiffies(3000);
 		}
 	}
 out:
@@ -1336,8 +1331,8 @@ static DEVICE_ATTR(siop_enable, 0664, siop_enable_show, siop_enable_store);
 static ssize_t lcd_type_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	char temp[20];
-	sprintf(temp, "SMD_AMS465GS37\n");
+	char temp[15];
+	sprintf(temp, "SMD_AMS465GS37-0\n");
 	strcat(buf, temp);
 	return strlen(buf);
 }

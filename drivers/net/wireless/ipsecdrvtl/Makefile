@@ -1,5 +1,3 @@
-OUTDIR=out
-
 TARGET_NAME := ipsecdrvtl
 TARGET_KO := $(TARGET_NAME).ko
 
@@ -63,9 +61,6 @@ EXTRA_CFLAGS += -D__linux -DDEVL -D_CPUDPENCAP -DIPSECDRVTL_EXPORTS -DNO_HAS160 
 
 all:
 	make -C $(SRCPATH) M=$(PWD) modules
-	mkdir -p $(OUTDIR)
-	mv $(TARGET_KO) $(OUTDIR)
 
 clean:
 	make -C $(SRCPATH) M=$(PWD) clean
-	rm -rf *.o *.d

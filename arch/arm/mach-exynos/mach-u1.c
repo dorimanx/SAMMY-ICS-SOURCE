@@ -375,7 +375,7 @@ static int m5mo_power_on(void)
 	ret = regulator_enable(regulator);
 	regulator_put(regulator);
 	CAM_CHECK_ERR_RET(ret, "enable cam_isp_core");
-	udelay(15);
+	/* No delay */
 
 	/* CAM_SENSOR_CORE_1.2V */
 	ret = gpio_direction_output(GPIO_CAM_SENSOR_CORE, 1);
@@ -4157,78 +4157,79 @@ static struct platform_device samsung_device_battery = {
 #ifdef CONFIG_TARGET_LOCALE_KOR
 /* temperature table for ADC 6 */
 static struct sec_bat_adc_table_data temper_table[] =  {
-	{ 264,      570 },
-	{ 289,      560 },
-	{ 314,      550 },
-	{ 340,      540 },
-	{ 365,      530 },
-	{ 390,      520 },
-	{ 416,      510 },
-	{ 441,      500 },
-	{ 467,      490 },
-	{ 492,      480 },
-	{ 517,      470 },
-	{ 543,      460 },
-	{ 578,      450 },
-	{ 614,      440 },
-	{ 649,      430 },
-	{ 686,      420 },
-	{ 698,      410 },
-	{ 710,      400 },
-	{ 722,      390 },
-	{ 734,      380 },
-	{ 746,      370 },
-	{ 761,      360 },
-	{ 780,      350 },
-	{ 799,      340 },
-	{ 819,      330 },
-	{ 838,      320 },
-	{ 857,      310 },
-	{ 876,      300 },
-	{ 895,      290 },
-	{ 914,      280 },
-	{ 933,      270 },
-	{ 952,      260 },
-	{ 971,      250 },
-	{ 990,      240 },
-	{ 1009,     230 },
-	{ 1030,     220 },
-	{ 1056,     210 },
-	{ 1082,     200 },
-	{ 1108,     190 },
-	{ 1131,     180 },
-	{ 1155,     170 },
-	{ 1178,     160 },
-	{ 1202,     150 },
-	{ 1226,     140 },
-	{ 1251,     130 },
-	{ 1275,     120 },
-	{ 1299,     110 },
-	{ 1324,     100 },
-	{ 1348,      90 },
-	{ 1372,      80 },
-	{ 1396,      70 },
-	{ 1421,      60 },
-	{ 1445,      50 },
-	{ 1468,      40 },
-	{ 1491,      30 },
-	{ 1513,      20 },
-	{ 1536,      10 },
-	{ 1559,       0 },
-	{ 1573,     -10 },
-	{ 1588,     -20 },
-	{ 1603,     -30 },
-	{ 1618,     -40 },
-	{ 1633,     -50 },
-	{ 1648,     -60 },
-	{ 1663,     -70 },
-	{ 1678,     -80 },
-	{ 1693,     -90 },
-	{ 1705,    -100 },
-	{ 1720,    -110 },
-	{ 1736,    -120 },
-	{ 1751,    -130 },
-	{ 1767,    -140 },
+	{  264,	 500 },
+	{  275,	 490 },
+	{  286,	 480 },
+	{  293,	 480 },
+	{  299,	 470 },
+	{  306,	 460 },
+	{  324,	 450 },
+	{  341,	 450 },
+	{  354,	 440 },
+	{  368,	 430 },
+	{  381,	 420 },
+	{  396,	 420 },
+	{  411,	 410 },
+	{  427,	 400 },
+	{  442,	 390 },
+	{  457,	 390 },
+	{  472,	 380 },
+	{  487,	 370 },
+	{  503,	 370 },
+	{  518,	 360 },
+	{  533,	 350 },
+	{  554,	 340 },
+	{  574,	 330 },
+	{  595,	 330 },
+	{  615,	 320 },
+	{  636,	 310 },
+	{  656,	 310 },
+	{  677,	 300 },
+	{  697,	 290 },
+	{  718,	 280 },
+	{  738,	 270 },
+	{  761,	 270 },
+	{  784,	 260 },
+	{  806,	 250 },
+	{  829,	 240 },
+	{  852,	 230 },
+	{  875,	 220 },
+	{  898,	 210 },
+	{  920,	 200 },
+	{  943,	 190 },
+	{  966,	 180 },
+	{  990,	 170 },
+	{ 1013,	 160 },
+	{ 1037,	 150 },
+	{ 1060,	 140 },
+	{ 1084,	 130 },
+	{ 1108,	 120 },
+	{ 1131,	 110 },
+	{ 1155,	 100 },
+	{ 1178,	  90 },
+	{ 1202,	  80 },
+	{ 1226,	  70 },
+	{ 1251,	  60 },
+	{ 1275,	  50 },
+	{ 1299,	  40 },
+	{ 1324,	  30 },
+	{ 1348,	  20 },
+	{ 1372,	  10 },
+	{ 1396,	   0 },
+	{ 1421,	 -10 },
+	{ 1445,	 -20 },
+	{ 1468,	 -30 },
+	{ 1491,	 -40 },
+	{ 1513,	 -50 },
+	{ 1536,	 -60 },
+	{ 1559,	 -70 },
+	{ 1577,	 -80 },
+	{ 1596,	 -90 },
+	{ 1614,	 -100 },
+	{ 1619,	 -110 },
+	{ 1632,	 -120 },
+	{ 1658,	 -130 },
+	{ 1667,	 -140 },
 };
 #elif defined(CONFIG_TARGET_LOCALE_NTT)
 /* temperature table for ADC 6 */
@@ -4681,7 +4682,6 @@ static struct sec_bat_adc_table_data temper_table_ADC7[] = {
 };
 #endif
 
-#define ADC_CH_VF	2
 #define ADC_CH_TEMPERATURE_PMIC	6
 #define ADC_CH_TEMPERATURE_LCD	7
 
@@ -4728,10 +4728,6 @@ static struct sec_bat_platform_data sec_bat_pdata = {
 	.adc_sub_table		= temper_table_ADC7,
 	.adc_sub_channel	= ADC_CH_TEMPERATURE_LCD,
 	.get_lpcharging_state	= sec_bat_get_lpcharging_state,
-#if defined(CONFIG_TARGET_LOCALE_NAATT) || \
-	defined(CONFIG_TARGET_LOCALE_NAATT_TEMP)
-	.adc_vf_channel = ADC_CH_VF,
-#endif
 #if defined(CONFIG_MACH_Q1_BD)
 	.initial_check		= sec_bat_initial_check,
 #else
@@ -5056,55 +5052,11 @@ static struct sec_therm_adc_table adc_ch6_table[] = {
 };
 #endif
 
-/* when the next level is same as prev, returns -1 */
-static int get_exynos4210_siop_level(int temp)
-{
-	static int prev_temp = 400;
-	static int prev_level;
-	int level = -1;
-
-	if (temp > prev_temp) {
-		if (temp >= 610)
-			level = 4;
-		else if (temp >= 590)
-			level = 3;
-		else if (temp >= 540)
-			level = 2;
-		else if (temp >= 510)
-			level = 1;
-		else
-			level = 0;
-	} else {
-		if (temp < 480)
-			level = 0;
-		else if (temp < 510)
-			level = 1;
-		else if (temp < 540)
-			level = 2;
-		else if (temp < 590)
-			level = 3;
-		else
-			level = 4;
-
-		if (level > prev_level)
-			level = prev_level;
-	}
-
-	prev_temp = temp;
-	if (prev_level == level)
-		return -1;
-
-	prev_level = level;
-
-	return level;
-}
-
 static struct sec_therm_platform_data sec_therm_pdata = {
 	.adc_channel	= 6,
 	.adc_arr_size	= ARRAY_SIZE(adc_ch6_table),
 	.adc_table	= adc_ch6_table,
 	.polling_interval = 30 * 1000, /* msecs */
-	.get_siop_level = get_exynos4210_siop_level,
 };
 
 static struct platform_device sec_device_thermistor = {
@@ -7530,17 +7482,6 @@ static void __init exynos4_cma_region_reserve(struct cma_region *regions_normal,
 			continue;
 
 		if (reg->start) {
-#if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_Q1_BD)
-			if (reg->start == 0x67200000) {
-				if (!memblock_is_region_reserved
-					(reg->start, 0x600000) &&
-					memblock_reserve(reg->start,
-						reg->size) >= 0)
-					reg->reserved = 1;
-			} else if (reg->start == 0x68400000)
-				reg->reserved = 1;
-			else
-#endif
 			if (!memblock_is_region_reserved(reg->start, reg->size)
 			    && memblock_reserve(reg->start, reg->size) >= 0)
 				reg->reserved = 1;
@@ -7552,10 +7493,6 @@ static void __init exynos4_cma_region_reserve(struct cma_region *regions_normal,
 				reg->reserved = 1;
 			}
 		}
-
-		if (reg->reserved)
-			pr_info("S5P/CMA: Reserved 0x%08x/0x%08x for '%s'\n",
-				reg->start, reg->size, reg->name);
 	}
 
 	if (regions_secure && regions_secure->size) {
@@ -7650,11 +7587,7 @@ static void __init exynos4_reserve_mem(void)
 			{
 				.alignment = 1 << 17,
 			},
-#if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_Q1_BD)
-			.start = 0x68400000,
-#else
 			.start = 0,
-#endif
 		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC0
@@ -7664,11 +7597,7 @@ static void __init exynos4_reserve_mem(void)
 			{
 				.alignment = 1 << 17,
 			},
-#if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_Q1_BD)
-			.start = 0x67200000,
-#else
 			.start = 0,
-#endif
 		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC
@@ -7706,12 +7635,7 @@ static void __init exynos4_reserve_mem(void)
 		{
 			.name = "tvout",
 			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_TVOUT * SZ_1K,
-#ifdef CONFIG_USE_TVOUT_CMA
-			.start = 0x65800000,
-			.reserved = 1,
-#else
 			.start = 0,
-#endif
 		},
 #endif
 		{
@@ -7746,25 +7670,6 @@ static void __init exynos4_reserve_mem(void)
 
 }
 #endif
-
-static void __init exynos_reserve(void)
-{
-#ifdef CONFIG_USE_TVOUT_CMA
-	if (dma_declare_contiguous(&s5p_device_tvout.dev,
-			CONFIG_VIDEO_SAMSUNG_MEMSIZE_TVOUT * SZ_1K,
-			0x65800000, 0))
-		printk(KERN_ERR "%s: failed to reserve contiguous "
-			"memory region for TVOUT\n", __func__);
-#endif
-
-#ifdef CONFIG_USE_MFC_CMA
-	if (dma_declare_contiguous(&s5p_device_mfc.dev,
-			SZ_1M * 40, 0x67800000, 0))
-		printk(KERN_ERR "%s: failed to reserve contiguous "
-			"memory region for MFC0/1\n", __func__);
-#endif
-}
-
 
 static void __init exynos_sysmmu_init(void)
 {
@@ -8213,5 +8118,4 @@ MACHINE_START(SMDKC210, MODEL_NAME)
 	.init_machine	= smdkc210_machine_init,
 	.timer		= &exynos4_timer,
 	.init_early	= &exynos_init_reserve,
-	.reserve	= &exynos_reserve,
 MACHINE_END

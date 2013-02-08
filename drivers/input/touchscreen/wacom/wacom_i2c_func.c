@@ -762,7 +762,7 @@ void ave_level(short CoordX, short CoordY,
 	/*Right*/
 	if (CoordY > Y_INC_E1) {
 		/*Transition*/
-		if (CoordY < Y_INC_E3)
+		if (CoordY > Y_INC_E3)
 			transition = true;
 		else
 			edgeY = true;
@@ -993,12 +993,15 @@ int wacom_i2c_coord(struct wacom_i2c *wac_i2c)
 			else
 				wac_i2c->tool = BTN_TOOL_PEN;
 
+			input_report_abs(wac_i2c->input_dev, ABS_X, x);
+			input_report_abs(wac_i2c->input_dev, ABS_Y, y);
 			input_report_abs(wac_i2c->input_dev, ABS_PRESSURE, 0);
 			input_report_key(wac_i2c->input_dev, BTN_STYLUS, 0);
 			input_report_key(wac_i2c->input_dev, BTN_TOUCH, 0);
-			input_report_key(wac_i2c->input_dev, wac_i2c->tool, 0);
+			input_report_key(wac_i2c->input_dev, wac_i2c->tool, 1);
 			input_sync(wac_i2c->input_dev);
 		}
+
 		schedule_delayed_work(&wac_i2c->pendct_dwork, HZ / 10);
 
 		return 0;

@@ -619,8 +619,13 @@ enum wmi_cmd_id {
 	WMI_SEND_MGMT_CMDID,
 	WMI_BEGIN_SCAN_CMDID,
 
+#if 0 // by bbelief
 	WMI_SET_BLACK_LIST,
 	WMI_SET_MCASTRATE,
+#else
+	WMI_SET_BLACK_LIST_CMDID,
+	WMI_SET_MCASTRATE_CMDID,
+#endif
 
 	WMI_STA_BMISS_ENHANCE_CMDID,
 
@@ -1606,10 +1611,11 @@ enum wmi_bi_ftype {
 	PROBEREQ_FTYPE,
 };
 
-#define DEF_LRSSI_SCAN_PERIOD		 5
+#define DEF_LRSSI_SCAN_PERIOD		5000	// by bbelief
 #define DEF_LRSSI_ROAM_THRESHOLD	20
 #define DEF_LRSSI_ROAM_FLOOR		60
-#define DEF_SCAN_FOR_ROAM_INTVL		 2
+#define DEF_SCAN_FOR_ROAM_INTVL		 5	// by bbelief
+
 
 enum wmi_roam_ctrl {
 	WMI_FORCE_ROAM = 1,
@@ -2030,6 +2036,12 @@ struct wmi_get_keepalive_cmd {
 	__le32 configured;
 	u8 keep_alive_intvl;
 } __packed;
+
+#if 1 // by bbelief
+struct wmi_set_mcastrate_cmd {
+	u16 bitrate;
+} __packed;
+#endif
 
 struct wmi_set_appie_cmd {
 	u8 mgmt_frm_type; /* enum wmi_mgmt_frame_type */
@@ -2601,6 +2613,10 @@ int ath6kl_wmi_probedssid_cmd(struct wmi *wmi, u8 if_idx, u8 index, u8 flag,
 int ath6kl_wmi_listeninterval_cmd(struct wmi *wmi, u8 if_idx,
 				  u16 listen_interval,
 				  u16 listen_beacons);
+#if 1 // by bbelief
+int ath6kl_wmi_mcastrate_cmd(struct wmi *wmi, u8 if_idx,
+				u16 bitrate);
+#endif
 int ath6kl_wmi_bmisstime_cmd(struct wmi *wmi, u8 if_idx,
 			     u16 bmiss_time, u16 num_beacons);
 int ath6kl_wmi_powermode_cmd(struct wmi *wmi, u8 if_idx, u8 pwr_mode);
@@ -2665,6 +2681,13 @@ int ath6kl_wmi_del_wow_pattern_cmd(struct wmi *wmi, u8 if_idx,
 int ath6kl_wmi_set_rssi_filter_cmd(struct wmi *wmi, u8 if_idx, s8 rssi);
 int ath6kl_wmi_set_roam_lrssi_cmd(struct wmi *wmi, u8 lrssi);
 int ath6kl_wmi_force_roam_cmd(struct wmi *wmi, const u8 *bssid);
+#if 1 // by bbelief
+int ath6kl_wmi_set_roam_lrssi_config_cmd(struct wmi *wmi,
+						struct low_rssi_scan_params *params);
+int ath6kl_wmi_set_ht_cap_cmd(struct wmi *wmi, u8 if_idx,
+		struct wmi_set_htcap_cmd *params);
+
+#endif
 int ath6kl_wmi_set_roam_mode_cmd(struct wmi *wmi, enum wmi_roam_mode mode);
 int ath6kl_wmi_mcast_filter_cmd(struct wmi *wmi, u8 if_idx, bool mc_all_on);
 int ath6kl_wmi_add_del_mcast_filter_cmd(struct wmi *wmi, u8 if_idx,

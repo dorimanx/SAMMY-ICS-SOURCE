@@ -461,10 +461,6 @@ static ssize_t store_ehci_power(struct device *dev,
 
 	if (!power_on && s5p_ehci->power_on) {
 		printk(KERN_DEBUG "%s: EHCI turns off\n", __func__);
-#if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB)
-		if (hcd->self.root_hub)
-			pm_runtime_forbid(&hcd->self.root_hub->dev);
-#endif
 		pm_runtime_forbid(dev);
 		s5p_ehci->power_on = 0;
 		usb_remove_hcd(hcd);

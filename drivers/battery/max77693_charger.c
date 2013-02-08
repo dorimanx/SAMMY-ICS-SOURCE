@@ -1145,20 +1145,13 @@ static void max77693_charger_reg_init(struct max77693_charger_data *chg_data)
 		reg_data |= (0x00 << 3);	/* 0min */
 	} else {
 #if defined(USE_2STEP_TERM)	/* now only T0 */
-#if defined(CONFIG_MACH_BAFFIN_KOR_SKT) || \
-	defined(CONFIG_MACH_BAFFIN_KOR_KT) || \
-	defined(CONFIG_MACH_BAFFIN_KOR_LGT)
-		reg_data = (0x00 << 0);		/* 100mA */
-		reg_data |= (0x04 << 3);	/* 40min */
-#else
 		reg_data = (0x04 << 0);		/* 200mA */
 		reg_data |= (0x04 << 3);	/* 40min */
-#endif
 #else
-#if (defined(CONFIG_MACH_GC1) && !defined(CONFIG_MACH_GC1_USA_VZW))
+#if defined(CONFIG_MACH_GC1)
 		reg_data = (0x02 << 0);		/* 150mA */
 		reg_data |= (0x00 << 3);	/* 0min */
-#else	/* M0, C1, GC_VZW,, */
+#else	/* M0, C1,,, */
 		reg_data = (0x00 << 0);		/* 100mA */
 		reg_data |= (0x00 << 3);	/* 0min */
 #endif
@@ -1705,9 +1698,6 @@ static irqreturn_t max77693_charger_irq(int irq, void *data)
 		pr_info("%s: abnormal power state: chgin(%d), vb(%d), chg(%d)\n",
 					__func__, chgin_dtls, vbvolt, chg_dtls);
 
-		/* set soft regulation progress */
-		chg_data->soft_reg_ing = true;
-
 		/* enable soft regulation loop */
 		chg_data->soft_reg_state = true;
 
@@ -1925,12 +1915,12 @@ static __devinit int max77693_charger_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&chg_data->softreg_work, max77693_softreg_work);
 	INIT_DELAYED_WORK(&chg_data->recovery_work, max77693_recovery_work);
 
-	chg_data->charger.name = "max77693-charger";
-	chg_data->charger.type = POWER_SUPPLY_TYPE_UNKNOWN;
-	chg_data->charger.properties = max77693_charger_props;
-	chg_data->charger.num_properties = ARRAY_SIZE(max77693_charger_props);
-	chg_data->charger.get_property = max77693_charger_get_property;
-	chg_data->charger.set_property = max77693_charger_set_property;
+	chg_data->charger.name = "max77693-charger",
+	chg_data->charger.type = POWER_SUPPLY_TYPE_BATTERY,
+	chg_data->charger.properties = max77693_charger_props,
+	chg_data->charger.num_properties = ARRAY_SIZE(max77693_charger_props),
+	chg_data->charger.get_property = max77693_charger_get_property,
+	chg_data->charger.set_property = max77693_charger_set_property,
 
 	ret = power_supply_register(&pdev->dev, &chg_data->charger);
 	if (ret) {
