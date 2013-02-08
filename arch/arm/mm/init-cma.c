@@ -20,7 +20,7 @@
 #include <linux/gfp.h>
 #include <linux/memblock.h>
 #include <linux/sort.h>
-#include <linux/suspend.h>
+#include <linux/dma-contiguous.h>
 
 #include <asm/mach-types.h>
 #include <asm/prom.h>
@@ -35,8 +35,8 @@
 
 #include "mm.h"
 
-static unsigned long phys_initrd_start __initdata = 0;
-static unsigned long phys_initrd_size __initdata = 0;
+static unsigned long phys_initrd_start = 0;
+static unsigned long phys_initrd_size = 0;
 
 static int __init early_initrd(char *p)
 {
@@ -75,7 +75,8 @@ static int __init parse_tag_initrd2(const struct tag *tag)
 __tagtable(ATAG_INITRD2, parse_tag_initrd2);
 
 #ifdef CONFIG_OF_FLATTREE
-void __init early_init_dt_setup_initrd_arch(unsigned long start, unsigned long end)
+void __init early_init_dt_setup_initrd_arch(unsigned long start,
+						 unsigned long end)
 {
 	phys_initrd_start = start;
 	phys_initrd_size = end - start;
@@ -93,12 +94,12 @@ void show_mem(unsigned int filter)
 {
 	int free = 0, total = 0, reserved = 0;
 	int shared = 0, cached = 0, slab = 0, i;
-	struct meminfo * mi = &meminfo;
+	struct meminfo *mi = &meminfo;
 
 	printk("Mem-info:\n");
 	show_free_areas(filter);
 
-	for_each_bank (i, mi) {
+	for_each_bank(i, mi) {
 		struct membank *bank = &mi->bank[i];
 		unsigned int pfn1, pfn2;
 		struct page *page, *end;
@@ -125,12 +126,12 @@ void show_mem(unsigned int filter)
 		} while (page < end);
 	}
 
-	printk("%d pages of RAM\n", total);
-	printk("%d free pages\n", free);
-	printk("%d reserved pages\n", reserved);
-	printk("%d slab pages\n", slab);
-	printk("%d pages shared\n", shared);
-	printk("%d pages swap cached\n", cached);
+	printk(KERN_INFO "%d pages of RAM\n", total);
+	printk(KERN_INFO "%d free pages\n", free);
+	printk(KERN_INFO "%d reserved pages\n", reserved);
+	printk(KERN_INFO "%d slab pages\n", slab);
+	printk(KERN_INFO "%d pages shared\n", shared);
+	printk(KERN_INFO "%d pages swap cached\n", cached);
 }
 
 static void __init find_limits(unsigned long *min, unsigned long *max_low,
@@ -142,7 +143,7 @@ static void __init find_limits(unsigned long *min, unsigned long *max_low,
 	*min = -1UL;
 	*max_low = *max_high = 0;
 
-	for_each_bank (i, mi) {
+	for_each_bank(i, mi) {
 		struct membank *bank = &mi->bank[i];
 		unsigned long start, end;
 
@@ -208,11 +209,23 @@ static void __init arm_bootmem_init(unsigned long start_pfn,
 			break;
 
 		reserve_bootmem(__pfn_to_phys(start),
-			        (end - start) << PAGE_SHIFT, BOOTMEM_DEFAULT);
+			(end - start) << PAGE_SHIFT, BOOTMEM_DEFAULT);
 	}
 }
 
 #ifdef CONFIG_ZONE_DMA
+
+unsigned long arm_dma_zone_size __read_mostly;
+EXPORT_SYMBOL(arm_dma_zone_size);
+
+/*
+ * The DMA mask corresponding to the maximum bus address allocatable
+ * using GFP_DMA.  The default here places no restriction on DMA
+ * allocations.  This must be the smallest DMA mask in the system,
+ * so a successful GFP_DMA allocation will always satisfy this.
+ */
+phys_addr_t arm_dma_limit;
+
 static void __init arm_adjust_dma_zone(unsigned long *size, unsigned long *hole,
 	unsigned long dma_size)
 {
@@ -225,6 +238,17 @@ static void __init arm_adjust_dma_zone(unsigned long *size, unsigned long *hole,
 	hole[ZONE_DMA] = 0;
 }
 #endif
+
+void __init setup_dma_zone(struct machine_desc *mdesc)
+{
+#ifdef CONFIG_ZONE_DMA
+	if (mdesc->dma_zone_size) {
+		arm_dma_zone_size = mdesc->dma_zone_size;
+		arm_dma_limit = PHYS_OFFSET + arm_dma_zone_size - 1;
+	} else
+		arm_dma_limit = 0xffffffff;
+#endif
+}
 
 static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 	unsigned long max_high)
@@ -268,17 +292,14 @@ static void __init arm_bootmem_free(unsigned long min, unsigned long max_low,
 #endif
 	}
 
-#ifdef ARM_DMA_ZONE_SIZE
-#ifndef CONFIG_ZONE_DMA
-#error ARM_DMA_ZONE_SIZE set but no DMA zone to limit allocations
-#endif
-
+#ifdef CONFIG_ZONE_DMA
 	/*
 	 * Adjust the sizes according to any special requirements for
 	 * this machine type.
 	 */
-	arm_adjust_dma_zone(zone_size, zhole_size,
-		ARM_DMA_ZONE_SIZE >> PAGE_SHIFT);
+	if (arm_dma_zone_size)
+		arm_adjust_dma_zone(zone_size, zhole_size,
+			arm_dma_zone_size >> PAGE_SHIFT);
 #endif
 
 	free_area_init_node(0, zone_size, min, zhole_size);
@@ -318,7 +339,8 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 {
 	int i;
 
-	sort(&meminfo.bank, meminfo.nr_banks, sizeof(meminfo.bank[0]), meminfo_cmp, NULL);
+	sort(&meminfo.bank, meminfo.nr_banks, sizeof(meminfo.bank[0]),
+		meminfo_cmp, NULL);
 
 	memblock_init();
 	for (i = 0; i < mi->nr_banks; i++)
@@ -358,6 +380,12 @@ void __init arm_memblock_init(struct meminfo *mi, struct machine_desc *mdesc)
 	/* reserve any platform specific memblock areas */
 	if (mdesc->reserve)
 		mdesc->reserve();
+
+	/*
+	 * reserve memory for DMA contigouos allocations,
+	 * must come from DMA area inside low memory
+	 */
+	dma_contiguous_reserve(min(arm_dma_limit, arm_lowmem_limit));
 
 	memblock_analyze();
 	memblock_dump_all();
@@ -568,12 +596,6 @@ void __init mem_init(void)
 	/* These pointers are filled in on TCM detection */
 	extern u32 dtcm_end;
 	extern u32 itcm_end;
-#endif
-
-#ifdef CONFIG_HIBERNATION
-	/* kernel code is nosave region */
-	register_nosave_region(__pa(_text) >> PAGE_SHIFT,
-				(__pa(_text) + _etext - _text) >> PAGE_SHIFT);
 #endif
 
 	max_mapnr   = pfn_to_page(max_pfn + PHYS_PFN_OFFSET) - mem_map;

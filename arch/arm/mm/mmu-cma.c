@@ -50,11 +50,10 @@ pmd_t *top_pmd;
 #define CPOLICY_WRITEALLOC	4
 
 static unsigned int cachepolicy __initdata = CPOLICY_WRITEBACK;
-static unsigned int ecc_mask __initdata = 0;
+static unsigned int ecc_mask = 0;
 pgprot_t pgprot_user;
-pgprot_t pgprot_kernel;
-
 EXPORT_SYMBOL(pgprot_user);
+pgprot_t pgprot_kernel;
 EXPORT_SYMBOL(pgprot_kernel);
 
 struct cachepolicy {
@@ -189,8 +188,8 @@ void adjust_cr(unsigned long mask, unsigned long set)
 }
 #endif
 
-#define PROT_PTE_DEVICE		L_PTE_PRESENT|L_PTE_YOUNG|L_PTE_DIRTY|L_PTE_XN
-#define PROT_SECT_DEVICE	PMD_TYPE_SECT|PMD_SECT_AP_WRITE
+#define PROT_PTE_DEVICE		(L_PTE_PRESENT|L_PTE_YOUNG|L_PTE_DIRTY|L_PTE_XN)
+#define PROT_SECT_DEVICE	(PMD_TYPE_SECT|PMD_SECT_AP_WRITE)
 
 static struct mem_type mem_types[] = {
 	[MT_DEVICE] = {		  /* Strongly ordered / ARMv6 shared device */
@@ -269,6 +268,19 @@ static struct mem_type mem_types[] = {
 		.domain    = DOMAIN_KERNEL,
 	},
 	[MT_MEMORY_ITCM] = {
+		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
+		.prot_l1   = PMD_TYPE_TABLE,
+		.domain    = DOMAIN_KERNEL,
+	},
+	[MT_MEMORY_SO] = {
+		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY |
+				L_PTE_MT_UNCACHED,
+		.prot_l1   = PMD_TYPE_TABLE,
+		.prot_sect = PMD_TYPE_SECT | PMD_SECT_AP_WRITE | PMD_SECT_S |
+				PMD_SECT_UNCACHED | PMD_SECT_XN,
+		.domain    = DOMAIN_KERNEL,
+	},
+	[MT_MEMORY_DMA_READY] = {
 		.prot_pte  = L_PTE_PRESENT | L_PTE_YOUNG | L_PTE_DIRTY,
 		.prot_l1   = PMD_TYPE_TABLE,
 		.domain    = DOMAIN_KERNEL,
@@ -363,8 +375,10 @@ static void __init build_mem_type_table(void)
 			 * (Uncached Normal memory)
 			 */
 			mem_types[MT_DEVICE].prot_sect |= PMD_SECT_TEX(1);
-			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_TEX(1);
-			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_BUFFERABLE;
+			mem_types[MT_DEVICE_NONSHARED].prot_sect
+							|= PMD_SECT_TEX(1);
+			mem_types[MT_DEVICE_WC].prot_sect
+							|= PMD_SECT_BUFFERABLE;
 		} else if (cpu_is_xsc3()) {
 			/*
 			 * For Xscale3,
@@ -373,8 +387,10 @@ static void __init build_mem_type_table(void)
 			 * - write combine device mem is TEXCB=00100
 			 * (Inner/Outer Uncacheable in xsc3 parlance)
 			 */
-			mem_types[MT_DEVICE].prot_sect |= PMD_SECT_TEX(1) | PMD_SECT_BUFFERED;
-			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_TEX(2);
+			mem_types[MT_DEVICE].prot_sect |= PMD_SECT_TEX(1)
+							| PMD_SECT_BUFFERED;
+			mem_types[MT_DEVICE_NONSHARED].prot_sect
+							|= PMD_SECT_TEX(2);
 			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_TEX(1);
 		} else {
 			/*
@@ -385,7 +401,8 @@ static void __init build_mem_type_table(void)
 			 * (Uncached Normal in ARMv6 parlance).
 			 */
 			mem_types[MT_DEVICE].prot_sect |= PMD_SECT_BUFFERED;
-			mem_types[MT_DEVICE_NONSHARED].prot_sect |= PMD_SECT_TEX(2);
+			mem_types[MT_DEVICE_NONSHARED].prot_sect
+							|= PMD_SECT_TEX(2);
 			mem_types[MT_DEVICE_WC].prot_sect |= PMD_SECT_TEX(1);
 		}
 	} else {
@@ -404,7 +421,8 @@ static void __init build_mem_type_table(void)
 	/*
 	 * Only use write-through for non-SMP systems
 	 */
-	if (!is_smp() && cpu_arch >= CPU_ARCH_ARMv5 && cachepolicy > CPOLICY_WRITETHROUGH)
+	if (!is_smp() && cpu_arch >= CPU_ARCH_ARMv5
+					&& cachepolicy > CPOLICY_WRITETHROUGH)
 		vecs_pgprot = cache_policies[CPOLICY_WRITETHROUGH].pte;
 
 	/*
@@ -414,6 +432,7 @@ static void __init build_mem_type_table(void)
 	if (arch_is_coherent() && cpu_is_xsc3()) {
 		mem_types[MT_MEMORY].prot_sect |= PMD_SECT_S;
 		mem_types[MT_MEMORY].prot_pte |= L_PTE_SHARED;
+		mem_types[MT_MEMORY_DMA_READY].prot_pte |= L_PTE_SHARED;
 		mem_types[MT_MEMORY_NONCACHED].prot_sect |= PMD_SECT_S;
 		mem_types[MT_MEMORY_NONCACHED].prot_pte |= L_PTE_SHARED;
 	}
@@ -425,9 +444,12 @@ static void __init build_mem_type_table(void)
 		 * Mark cache clean areas and XIP ROM read only
 		 * from SVC mode and no access from userspace.
 		 */
-		mem_types[MT_ROM].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
-		mem_types[MT_MINICLEAN].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
-		mem_types[MT_CACHECLEAN].prot_sect |= PMD_SECT_APX|PMD_SECT_AP_WRITE;
+		mem_types[MT_ROM].prot_sect |= PMD_SECT_APX
+							| PMD_SECT_AP_WRITE;
+		mem_types[MT_MINICLEAN].prot_sect |= PMD_SECT_APX
+							| PMD_SECT_AP_WRITE;
+		mem_types[MT_CACHECLEAN].prot_sect |= PMD_SECT_APX
+							| PMD_SECT_AP_WRITE;
 
 		if (is_smp()) {
 			/*
@@ -443,6 +465,7 @@ static void __init build_mem_type_table(void)
 			mem_types[MT_DEVICE_CACHED].prot_pte |= L_PTE_SHARED;
 			mem_types[MT_MEMORY].prot_sect |= PMD_SECT_S;
 			mem_types[MT_MEMORY].prot_pte |= L_PTE_SHARED;
+			mem_types[MT_MEMORY_DMA_READY].prot_pte |= L_PTE_SHARED;
 			mem_types[MT_MEMORY_NONCACHED].prot_sect |= PMD_SECT_S;
 			mem_types[MT_MEMORY_NONCACHED].prot_pte |= L_PTE_SHARED;
 		}
@@ -482,6 +505,7 @@ static void __init build_mem_type_table(void)
 	mem_types[MT_HIGH_VECTORS].prot_l1 |= ecc_mask;
 	mem_types[MT_MEMORY].prot_sect |= ecc_mask | cp->pmd;
 	mem_types[MT_MEMORY].prot_pte |= kern_pgprot;
+	mem_types[MT_MEMORY_DMA_READY].prot_pte |= kern_pgprot;
 	mem_types[MT_MEMORY_NONCACHED].prot_sect |= ecc_mask;
 	mem_types[MT_ROM].prot_sect |= cp->pmd;
 
@@ -494,7 +518,7 @@ static void __init build_mem_type_table(void)
 		mem_types[MT_CACHECLEAN].prot_sect |= PMD_SECT_WB;
 		break;
 	}
-	printk("Memory policy: ECC %sabled, Data cache %s\n",
+	printk(KERN_INFO "Memory policy: ECC %sabled, Data cache %s\n",
 		ecc_mask ? "en" : "dis", cp->policy);
 
 	for (i = 0; i < ARRAY_SIZE(mem_types); i++) {
@@ -528,7 +552,8 @@ static void __init *early_alloc(unsigned long sz)
 	return ptr;
 }
 
-static pte_t * __init early_pte_alloc(pmd_t *pmd, unsigned long addr, unsigned long prot)
+static pte_t * __init early_pte_alloc(pmd_t *pmd, unsigned long addr,
+							unsigned long prot)
 {
 	if (pmd_none(*pmd)) {
 		pte_t *pte = early_alloc(PTE_HWTABLE_OFF + PTE_HWTABLE_SIZE);
@@ -561,7 +586,7 @@ static void __init alloc_init_section(pud_t *pud, unsigned long addr,
 	 * L1 entries, whereas PGDs refer to a group of L1 entries making
 	 * up one logical pointer to an L2 table.
 	 */
-	if (((addr | end | phys) & ~SECTION_MASK) == 0) {
+	if (type->prot_sect && ((addr | end | phys) & ~SECTION_MASK) == 0) {
 		pmd_t *p = pmd;
 
 		if (addr & SECTION_SIZE)
@@ -757,7 +782,7 @@ static int __init early_vmalloc(char *arg)
 }
 early_param("vmalloc", early_vmalloc);
 
-static phys_addr_t lowmem_limit __initdata = 0;
+phys_addr_t arm_lowmem_limit = 0;
 
 void __init sanity_check_meminfo(void)
 {
@@ -805,9 +830,9 @@ void __init sanity_check_meminfo(void)
 		if (__va(bank->start) >= vmalloc_min ||
 		    __va(bank->start) < (void *)PAGE_OFFSET) {
 			printk(KERN_NOTICE "Ignoring RAM at %.8llx-%.8llx "
-			       "(vmalloc region overlap).\n",
-			       (unsigned long long)bank->start,
-			       (unsigned long long)bank->start + bank->size - 1);
+		       "(vmalloc region overlap).\n",
+		       (unsigned long long)bank->start,
+		       (unsigned long long)bank->start + bank->size - 1);
 			continue;
 		}
 
@@ -826,8 +851,9 @@ void __init sanity_check_meminfo(void)
 			bank->size = newsize;
 		}
 #endif
-		if (!bank->highmem && bank->start + bank->size > lowmem_limit)
-			lowmem_limit = bank->start + bank->size;
+		if (!bank->highmem && bank->start + bank->size
+							> arm_lowmem_limit)
+			arm_lowmem_limit = bank->start + bank->size;
 
 		j++;
 	}
@@ -844,15 +870,15 @@ void __init sanity_check_meminfo(void)
 			reason = "with VIPT aliasing cache";
 		}
 		if (reason) {
-			printk(KERN_CRIT "HIGHMEM is not supported %s, ignoring high memory\n",
-				reason);
+			printk(KERN_CRIT "HIGHMEM is not supported %s,"
+					" ignoring high memory\n", reason);
 			while (j > 0 && meminfo.bank[j - 1].highmem)
 				j--;
 		}
 	}
 #endif
 	meminfo.nr_banks = j;
-	memblock_set_current_limit(lowmem_limit);
+	memblock_set_current_limit(arm_lowmem_limit);
 }
 
 static inline void prepare_page_table(void)
@@ -877,8 +903,8 @@ static inline void prepare_page_table(void)
 	 * Find the end of the first block of lowmem.
 	 */
 	end = memblock.memory.regions[0].base + memblock.memory.regions[0].size;
-	if (end >= lowmem_limit)
-		end = lowmem_limit;
+	if (end >= arm_lowmem_limit)
+		end = arm_lowmem_limit;
 
 	/*
 	 * Clear out all the kernel space mappings, except for the first
@@ -936,7 +962,8 @@ static void __init devicemaps_init(struct machine_desc *mdesc)
 #ifdef CONFIG_XIP_KERNEL
 	map.pfn = __phys_to_pfn(CONFIG_XIP_PHYS_ADDR & SECTION_MASK);
 	map.virtual = MODULES_VADDR;
-	map.length = ((unsigned long)_etext - map.virtual + ~SECTION_MASK) & SECTION_MASK;
+	map.length = ((unsigned long)_etext - map.virtual + ~SECTION_MASK)
+								& SECTION_MASK;
 	map.type = MT_ROM;
 	create_mapping(&map);
 #endif
@@ -996,7 +1023,7 @@ static void __init kmap_init(void)
 {
 #ifdef CONFIG_HIGHMEM
 	pkmap_page_table = early_pte_alloc(pmd_off_k(PKMAP_BASE),
-		PKMAP_BASE, _PAGE_KERNEL_TABLE);
+					PKMAP_BASE, _PAGE_KERNEL_TABLE);
 #endif
 }
 
@@ -1010,8 +1037,8 @@ static void __init map_lowmem(void)
 		phys_addr_t end = start + reg->size;
 		struct map_desc map;
 
-		if (end > lowmem_limit)
-			end = lowmem_limit;
+		if (end > arm_lowmem_limit)
+			end = arm_lowmem_limit;
 		if (start >= end)
 			break;
 
@@ -1032,11 +1059,12 @@ void __init paging_init(struct machine_desc *mdesc)
 {
 	void *zero_page;
 
-	memblock_set_current_limit(lowmem_limit);
+	memblock_set_current_limit(arm_lowmem_limit);
 
 	build_mem_type_table();
 	prepare_page_table();
 	map_lowmem();
+	dma_contiguous_remap();
 	devicemaps_init(mdesc);
 	kmap_init();
 
