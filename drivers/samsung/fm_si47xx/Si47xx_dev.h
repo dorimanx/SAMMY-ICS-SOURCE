@@ -1,10 +1,17 @@
-#ifndef _Si4709_DEV_H
-#define _Si4709_DEV_H
+/*
+ * Si47xx_dev.h  --  Si47xx FM Radio driver
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#ifndef _Si47xx_dev_H
+#define _Si47xx_dev_H
 
 #include <linux/i2c.h>
 
-#include "Si4709_regs.h"
-#include "Si4709_common.h"
+#include <linux/i2c/si47xx_common.h>
 
 #define NUM_SEEK_PRESETS	20
 
@@ -76,18 +83,6 @@ struct status_rssi {
 	u16 rssi;
 };
 
-struct power_config {
-	u16 dsmute:1;
-	u16 dmute:1;
-	u16 mono:1;
-	u16 rds_mode:1;
-	u16 sk_mode:1;
-	u16 seek_up:1;
-	u16 seek:1;
-	u16 power_disable:1;
-	u16 power_enable:1;
-};
-
 struct radio_data_t {
 	u16 rdsa;
 	u16 rdsb;
@@ -106,6 +101,30 @@ struct channel_into_t {
 	u8 rsssi_val;
 };
 
+struct tune_data_t {
+	u8 stc;
+	u8 bltf;
+	u8 afcrl;
+	u8 valid;
+	u16 freq;
+	u8 rssi;
+	u8 asnr;
+	u16 antcap;
+};
+
+struct rsq_data_t {
+	u8 rsqints;
+	u8 smute;
+	u8 afcrl;
+	u8 valid;
+	u8 pilot;
+	u8 blend;
+	u8 rssi;
+	u8 snr;
+	u8 mult;
+	u8 freqoff;
+};
+
 struct dev_settings_t {
 	u16 band;
 	u32 bottom_of_band;
@@ -114,9 +133,10 @@ struct dev_settings_t {
 	u32 seek_preset[NUM_SEEK_PRESETS];
 	u8 curr_snr;
 	u8 curr_rssi_th;
+	u8 curr_rssi;
 };
 
-struct Si4709_device_t {
+struct Si47xx_device_t {
 	/*Any function which
 	   - views/modifies the fields of this structure
 	   - does i2c communication
@@ -126,16 +146,12 @@ struct Si4709_device_t {
 	   of this. The static functions will not deal with the
 	   mutex */
 	struct mutex lock;
-
-	struct i2c_client const *client;
-
+	struct si47xx_platform_data	*pdata;
+	struct i2c_client *client;
+	struct device	*dev;
 	struct dev_state_t state;
-
 	struct dev_settings_t settings;
-
 	struct channel_into_t rssi_freq[50];
-
-	u16 registers[NUM_OF_REGISTERS];
 
 	/* This field will be checked by all the functions
 	   exported by this file (except the init function),
@@ -147,19 +163,19 @@ struct Si4709_device_t {
 
 	/*will be true is the client ans state fields are correct */
 	unsigned short valid_client_state;
-
 	u8 vol_idx;
 };
 
-extern int Si4709_dev_wait_flag;
+extern int Si47xx_dev_wait_flag;
+extern wait_queue_head_t Si4709_waitq;
 
 #ifdef RDS_INTERRUPT_ON_ALWAYS
-extern int Si4709_RDS_flag;
+extern int Si47xx_RDS_flag;
 extern int RDS_Data_Available;
 extern int RDS_Data_Lost;
 extern int RDS_Groups_Available_till_now;
-extern struct workqueue_struct *Si4709_wq;
-extern struct work_struct Si4709_work;
+extern struct workqueue_struct *Si47xx_wq;
+extern struct work_struct Si47xx_work;
 #endif
 
 /*	Function prototypes	*/
@@ -172,63 +188,59 @@ extern struct work_struct Si4709_work;
 */
 /**********************************************/
 
-extern int Si4709_dev_init(struct i2c_client *);
-extern int Si4709_dev_exit(void);
+extern int Si47xx_dev_init(struct Si47xx_device_t *);
+extern int Si47xx_dev_exit(void);
 
-extern void Si4709_dev_mutex_init(void);
-extern void Si4709_dev_mutex_destroy(void);
+extern int Si47xx_dev_suspend(void);
+extern int Si47xx_dev_resume(void);
 
-extern int Si4709_dev_suspend(void);
-extern int Si4709_dev_resume(void);
+extern int Si47xx_dev_powerup(void);
+extern int Si47xx_dev_powerdown(void);
 
-extern int Si4709_dev_powerup(void);
-extern int Si4709_dev_powerdown(void);
+extern int Si47xx_dev_band_set(int);
+extern int Si47xx_dev_ch_spacing_set(int);
 
-extern int Si4709_dev_band_set(int);
-extern int Si4709_dev_ch_spacing_set(int);
+extern int Si47xx_dev_chan_select(u32);
+extern int Si47xx_dev_chan_get(u32 *);
 
-extern int Si4709_dev_chan_select(u32);
-extern int Si4709_dev_chan_get(u32 *);
+extern int Si47xx_dev_seek_full(u32 *);
+extern int Si47xx_dev_seek_up(u32 *);
+extern int Si47xx_dev_seek_down(u32 *);
+extern int Si47xx_dev_seek_auto(u32 *);
 
-extern int Si4709_dev_seek_full(u32 *);
-extern int Si4709_dev_seek_up(u32 *);
-extern int Si4709_dev_seek_down(u32 *);
-extern int Si4709_dev_seek_auto(u32 *);
-
-extern int Si4709_dev_RSSI_seek_th_set(u8);
-extern int Si4709_dev_seek_SNR_th_set(u8);
-extern int Si4709_dev_seek_FM_ID_th_set(u8);
-extern int Si4709_dev_cur_RSSI_get(struct rssi_snr_t *);
-extern int Si4709_dev_VOLEXT_ENB(void);
-extern int Si4709_dev_VOLEXT_DISB(void);
-extern int Si4709_dev_volume_set(u8);
-extern int Si4709_dev_volume_get(u8 *);
-extern int Si4709_dev_DSMUTE_ON(void);
-extern int Si4709_dev_DSMUTE_OFF(void);
-extern int Si4709_dev_MUTE_ON(void);
-extern int Si4709_dev_MUTE_OFF(void);
-extern int Si4709_dev_MONO_SET(void);
-extern int Si4709_dev_STEREO_SET(void);
-extern int Si4709_dev_rstate_get(struct dev_state_t *);
-extern int Si4709_dev_RDS_data_get(struct radio_data_t *);
-extern int Si4709_dev_RDS_ENABLE(void);
-extern int Si4709_dev_RDS_DISABLE(void);
-extern int Si4709_dev_RDS_timeout_set(u32);
-extern int Si4709_dev_device_id(struct device_id *);
-extern int Si4709_dev_chip_id(struct chip_id *);
-extern int Si4709_dev_sys_config2(struct sys_config2 *);
-extern int Si4709_dev_sys_config3(struct sys_config3 *);
-extern int Si4709_dev_power_config(struct power_config *);
-extern int Si4709_dev_AFCRL_get(u8 *);
-extern int Si4709_dev_DE_set(u8);
-extern int Si4709_dev_status_rssi(struct status_rssi *status);
-extern int Si4709_dev_sys_config2_set(struct sys_config2 *sys_conf2);
-extern int Si4709_dev_sys_config3_set(struct sys_config3 *sys_conf3);
-extern int Si4709_dev_reset_rds_data(void);
+extern int Si47xx_dev_RSSI_seek_th_set(u8);
+extern int Si47xx_dev_seek_SNR_th_set(u8);
+extern int Si47xx_dev_seek_FM_ID_th_set(u8);
+extern int Si47xx_dev_cur_RSSI_get(struct rssi_snr_t *);
+extern int Si47xx_dev_volume_set(u8);
+extern int Si47xx_dev_volume_get(u8 *);
+extern int Si47xx_dev_DSMUTE_ON(void);
+extern int Si47xx_dev_DSMUTE_OFF(void);
+extern int Si47xx_dev_MUTE_ON(void);
+extern int Si47xx_dev_MUTE_OFF(void);
+extern int Si47xx_dev_MONO_SET(void);
+extern int Si47xx_dev_STEREO_SET(void);
+extern int Si47xx_dev_rstate_get(struct dev_state_t *);
+extern int Si47xx_dev_RDS_data_get(struct radio_data_t *);
+extern int Si47xx_dev_RDS_ENABLE(void);
+extern int Si47xx_dev_RDS_DISABLE(void);
+extern int Si47xx_dev_RDS_timeout_set(u32);
+extern int Si47xx_dev_device_id(struct device_id *);
+extern int Si47xx_dev_chip_id(struct chip_id *);
+extern int Si47xx_dev_sys_config2(struct sys_config2 *);
+extern int Si47xx_dev_sys_config3(struct sys_config3 *);
+extern int Si47xx_dev_AFCRL_get(u8 *);
+extern int Si47xx_dev_DE_set(u8);
+extern int Si47xx_dev_status_rssi(struct status_rssi *status);
+extern int Si47xx_dev_sys_config2_set(struct sys_config2 *sys_conf2);
+extern int Si47xx_dev_sys_config3_set(struct sys_config3 *sys_conf3);
+extern int Si47xx_dev_reset_rds_data(void);
 
 /***********************************************/
 
 #ifdef RDS_INTERRUPT_ON_ALWAYS
-extern void Si4709_work_func(struct work_struct *);
+extern void Si47xx_work_func(struct work_struct *);
 #endif
 #endif
+
+
