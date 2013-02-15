@@ -25,7 +25,7 @@
 #endif
 
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT)
+	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_BAFFIN)
 extern int siopLevellimit;
 #endif
 
@@ -402,7 +402,91 @@ static struct adc_table_data ap_adc_temper_table_battery[] = {
 	{ 1685,	-90 },
 	{ 1692,	-100 },
 };
-#else/*EUR, VZW*/
+#elif defined(CONFIG_MACH_GC1_USA_VZW)
+static struct adc_table_data ap_adc_temper_table_battery[] = {
+	{ 240, 700 },
+	{ 248, 690 },
+	{ 256, 680 },
+	{ 264, 670 },
+	{ 272, 660 },
+	{ 280, 650 },
+	{ 292, 640 },
+	{ 304, 630 },
+	{ 317, 620 },
+	{ 330, 610 },
+	{ 341, 600 },
+	{ 352, 590 },
+	{ 364, 580 },
+	{ 376, 570 },
+	{ 388, 560 },
+	{ 400, 550 },
+	{ 414, 540 },
+	{ 428, 530 },
+	{ 442, 520 },
+	{ 456, 510 },
+	{ 470, 500 },
+	{ 487, 490 },
+	{ 504, 480 },
+	{ 520, 470 },
+	{ 540, 460 },
+	{ 560, 450 },
+	{ 566, 440 },
+	{ 572, 430 },
+	{ 578, 420 },
+	{ 584, 410 },
+	{ 590, 400 },
+	{ 628, 390 },
+	{ 666, 380 },
+	{ 704, 370 },
+	{ 742, 360 },
+	{ 780, 350 },
+	{ 798, 340 },
+	{ 816, 330 },
+	{ 834, 320 },
+	{ 852, 310 },
+	{ 870, 300 },
+	{ 894, 290 },
+	{ 918, 280 },
+	{ 942, 270 },
+	{ 966, 260 },
+	{ 990, 250 },
+	{ 1028, 240 },
+	{ 1066, 230 },
+	{ 1104, 220 },
+	{ 1142, 210 },
+	{ 1180, 200 },
+	{ 1202, 190 },
+	{ 1224, 180 },
+	{ 1246, 170 },
+	{ 1268, 160 },
+	{ 1290, 150 },
+	{ 1316, 140 },
+	{ 1342, 130 },
+	{ 1368, 120 },
+	{ 1394, 110 },
+	{ 1420, 100 },
+	{ 1436, 90 },
+	{ 1452, 80 },
+	{ 1468, 70 },
+	{ 1484, 60 },
+	{ 1500, 50 },
+	{ 1512, 40 },
+	{ 1524, 30 },
+	{ 1537, 20 },
+	{ 1550, 15 },
+	{ 1561, 0 },
+	{ 1572, -10 },
+	{ 1584, -20 },
+	{ 1596, -30 },
+	{ 1608, -40 },
+	{ 1620, -49 },
+	{ 1626, -60 },
+	{ 1632, -70 },
+	{ 1638, -80 },
+	{ 1644, -90 },
+	{ 1650, -100 },
+};
+#else/*EUR*/
 static struct adc_table_data ap_adc_temper_table_battery[] = {
 	{  250,	 700 },
 	{  259,	 690 },
@@ -672,94 +756,94 @@ static struct adc_table_data ap_adc_temper_table_battery[] = {
 };
 #elif defined(CONFIG_MACH_T0_CHN_CTC)
 static struct adc_table_data ap_adc_temper_table_battery[] = {
-	{  200,	 800 },
-	{  207,	 790 },
-	{  214,	 780 },
-	{  221,	 770 },
-	{  228,	 760 },
-	{  235,	 750 },
-	{  248,	 740 },
-	{  260,	 730 },
-	{  273,	 720 },
-	{  286,	 710 },
-	{  299,	 700 },
-	{  310,	 690 },
-	{  321,	 680 },
-	{  332,	 670 },
-	{  345,	 660 },
-	{  355,	 650 },
-	{  370,	 640 },
-	{  381,	 630 },
-	{  393,	 620 },
-	{  406,	 610 },
-	{  423,	 600 },
-	{  435,	 590 },
-	{  448,	 580 },
-	{  460,	 570 },
-	{  473,	 560 },
-	{  485,	 550 },
-	{  498,	 540 },
-	{  511,	 530 },
-	{  524,	 520 },
-	{  537,	 510 },
-	{  550,	 500 },
-	{  566,	 490 },
-	{  582,	 480 },
-	{  598,	 470 },
-	{  614,	 460 },
-	{  630,	 450 },
-	{  649,	 440 },
-	{  668,	 430 },
-	{  687,	 420 },
-	{  706,	 410 },
-	{  725,	 400 },
-	{  744,	 390 },
-	{  763,	 380 },
-	{  782,	 370 },
-	{  801,	 360 },
-	{  820,	 350 },
-	{  841,	 340 },
-	{  862,	 330 },
-	{  883,	 320 },
-	{  904,	 310 },
-	{  925,	 300 },
-	{  946,	 290 },
-	{  967,	 280 },
-	{  988,	 270 },
-	{ 1009,	 260 },
-	{ 1030,	 250 },
-	{ 1050,	 240 },
-	{ 1070,	 230 },
-	{ 1090,	 220 },
-	{ 1110,	 210 },
-	{ 1130,	 200 },
-	{ 1154,	 190 },
-	{ 1178,	 180 },
-	{ 1202,	 170 },
-	{ 1226,	 160 },
-	{ 1250,	 150 },
-	{ 1272,	 140 },
-	{ 1294,	 130 },
-	{ 1315,	 120 },
-	{ 1337,	 110 },
-	{ 1359,	 100 },
-	{ 1381,	  90 },
-	{ 1403,	  80 },
-	{ 1424,	  70 },
-	{ 1446,	  60 },
-	{ 1468,	  50 },
-	{ 1489,	  40 },
-	{ 1510,	  30 },
-	{ 1532,	  20 },
-	{ 1553,	  10 },
-	{ 1574,	   0 },
-	{ 1591,	 -10 },
-	{ 1609,	 -20 },
-	{ 1626,	 -30 },
-	{ 1644,	 -40 },
-	{ 1661,	 -50 },
-	{ 1676,	 -60 },
-	{ 1691,	 -70 },
+	{  200,  800 },
+	{  207,  790 },
+	{  214,  780 },
+	{  221,  770 },
+	{  228,  760 },
+	{  235,  750 },
+	{  248,  740 },
+	{  260,  730 },
+	{  273,  720 },
+	{  286,  710 },
+	{  299,  700 },
+	{  310,  690 },
+	{  321,  680 },
+	{  332,  670 },
+	{  345,  660 },
+	{  353,  650 },
+	{  358,  640 },
+	{  363,  630 },
+	{  370,  620 },
+	{  375,  610 },
+	{  381,  600 },
+	{  393,  590 },
+	{  423,  580 },
+	{  435,  570 },
+	{  448,  560 },
+	{  460,  550 },
+	{  473,  540 },
+	{  485,  530 },
+	{  511,  520 },
+	{  524,  510 },
+	{  537,  500 },
+	{  550,  490 },
+	{  566,  480 },
+	{  582,  470 },
+	{  598,  460 },
+	{  620,  450 },
+	{  649,  440 },
+	{  668,  430 },
+	{  687,  420 },
+	{  706,  410 },
+	{  725,  400 },
+	{  744,  390 },
+	{  763,  380 },
+	{  782,  370 },
+	{  801,  360 },
+	{  820,  350 },
+	{  841,  340 },
+	{  862,  330 },
+	{  883,  320 },
+	{  904,  310 },
+	{  925,  300 },
+	{  946,  290 },
+	{  967,  280 },
+	{  988,  270 },
+	{ 1009,  260 },
+	{ 1030,  250 },
+	{ 1050,  240 },
+	{ 1070,  230 },
+	{ 1090,  220 },
+	{ 1110,  210 },
+	{ 1130,  200 },
+	{ 1154,  190 },
+	{ 1178,  180 },
+	{ 1202,  170 },
+	{ 1226,  160 },
+	{ 1250,  150 },
+	{ 1272,  140 },
+	{ 1294,  130 },
+	{ 1315,  120 },
+	{ 1337,  110 },
+	{ 1359,  100 },
+	{ 1381,   90 },
+	{ 1403,   80 },
+	{ 1424,   70 },
+	{ 1446,   60 },
+	{ 1468,   50 },
+	{ 1489,   40 },
+	{ 1510,   30 },
+	{ 1532,   20 },
+	{ 1553,   10 },
+	{ 1574,    0 },
+	{ 1591,  -10 },
+	{ 1609,  -20 },
+	{ 1626,  -30 },
+	{ 1644,  -40 },
+	{ 1661,  -50 },
+	{ 1676,  -60 },
+	{ 1691,  -70 },
 	{ 1707,  -80 },
 	{ 1722,  -90 },
 	{ 1737, -100 },
@@ -773,6 +857,18 @@ static struct adc_table_data ap_adc_temper_table_battery[] = {
 	{ 1819, -180 },
 	{ 1827, -190 },
 	{ 1836, -200 },
+};
+#elif defined(CONFIG_MACH_T0_CHN_OPEN_DUOS)
+static struct adc_table_data ap_adc_temper_table_battery[] = {
+	{ 358,   600 },
+	{ 500,   500 },
+	{ 600,   400 },
+	{ 794,   300 },
+	{ 1132,  200 },
+	{ 1363,  100 },
+	{ 1574,    0 },
+	{ 1732, -100 },
+	{ 1860, -200 },
 };
 #else	/* T0 3G(default) */
 static struct adc_table_data ap_adc_temper_table_battery[] = {
@@ -1270,6 +1366,101 @@ static int get_midas_siop_level(int temp)
 		if (level > prev_level)
 			level = prev_level;
 	}
+
+#elif defined(CONFIG_MACH_BAFFIN_KOR_SKT) || \
+	defined(CONFIG_MACH_BAFFIN_KOR_KT)
+	if (temp > prev_temp) {
+		if (temp >= 560)
+			level = 4;
+		else if (temp >= 550)
+			level = 3;
+		else if (temp >= 530)
+			level = 2;
+		else if (temp >= 460)
+			level = 1;
+		else
+			level = 0;
+	} else {
+		if (temp < 410)
+			level = 0;
+		else if (temp < 460)
+			level = 1;
+		else if (temp < 530)
+			level = 2;
+		else if (temp < 550)
+			level = 3;
+		else
+			level = 4;
+
+		if (level > prev_level)
+			level = prev_level;
+	}
+
+	if (siopLevellimit != 0 && level > siopLevellimit)
+		level = siopLevellimit;
+
+#elif defined(CONFIG_MACH_BAFFIN_KOR_LGT)
+	if (temp > prev_temp) {
+		if (temp >= 550)
+			level = 4;
+		else if (temp >= 540)
+			level = 3;
+		else if (temp >= 510)
+			level = 2;
+		else if (temp >= 450)
+			level = 1;
+		else
+			level = 0;
+	} else {
+		if (temp < 410)
+			level = 0;
+		else if (temp < 450)
+			level = 1;
+		else if (temp < 510)
+			level = 2;
+		else if (temp < 540)
+			level = 3;
+		else
+			level = 4;
+
+		if (level > prev_level)
+			level = prev_level;
+	}
+
+	if (siopLevellimit != 0 && level > siopLevellimit)
+		level = siopLevellimit;
+
+#elif defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
+	if (temp > prev_temp) {
+		if (temp >= 540)
+			level = 4;
+		else if (temp >= 530)
+			level = 3;
+		else if (temp >= 480)
+			level = 2;
+		else if (temp >= 440)
+			level = 1;
+		else
+			level = 0;
+	} else {
+		if (temp < 410)
+			level = 0;
+		else if (temp < 440)
+			level = 1;
+		else if (temp < 480)
+			level = 2;
+		else if (temp < 530)
+			level = 3;
+		else
+			level = 4;
+
+		if (level > prev_level)
+			level = prev_level;
+	}
+
+	if (siopLevellimit != 0 && level > siopLevellimit)
+		level = siopLevellimit;
+
 #else
 	if (temp > prev_temp) {
 		if (temp >= 540)
@@ -1325,9 +1516,9 @@ struct platform_device sec_device_thermistor = {
 
 #ifdef CONFIG_SEC_SUBTHERMISTOR
 static struct sec_therm_adc_table subtemper_table_ap[] = {
-	{ 380,   600 },
-	{ 410,   520 },
-	{ 420,   500 },
+	{ 345,   600 },
+	{ 390,   520 },
+	{ 410,   500 },
 	{ 698,   400 },
 	{ 898,   300 },
 	{ 1132,  200 },
@@ -1341,7 +1532,7 @@ static struct sec_therm_platform_data sec_subtherm_pdata = {
 	.adc_channel	= 3,
 	.adc_arr_size	= ARRAY_SIZE(subtemper_table_ap),
 	.adc_table	= subtemper_table_ap,
-	.polling_interval = 30 * 1000, /* msecs */
+	.polling_interval = 20 * 1000, /* msecs */
 	.get_siop_level = NULL,
 };
 

@@ -780,6 +780,7 @@ static struct sromc_timing_cfg cbp_edpram_timing_cfg = {
 static struct modemlink_dpram_control cbp_edpram_ctrl = {
 	.dp_type = EXT_DPRAM,
 	.dpram_irq_flags = (IRQF_NO_SUSPEND | IRQF_TRIGGER_FALLING),
+	.res_ack_wait_timeout = 100,
 };
 
 static struct resource cdma_modem_res[] = {
@@ -1121,7 +1122,9 @@ static int __init init_usbhub(void)
 	platform_device_register(&s3c_device_i2c20);
 	return 0;
 }
+#if !defined(CONFIG_MACH_BAFFIN)
 device_initcall(init_usbhub);
+#endif
 
 static int __init init_modem(void)
 {

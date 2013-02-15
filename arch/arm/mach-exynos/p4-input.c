@@ -156,6 +156,7 @@ static u8 inform_data_rev5[] = {0,
 
 /* Added for the LTE model */
 static u8 inform_data_rev9[] = {0,
+	7, 0, 48, 255,
 	7, 1, 11, 255,
 	46, 3, 16, 24,
 	47, 1, 35, 45,
