@@ -60,6 +60,9 @@
 #elif defined(CONFIG_MACH_T0)
 #define TK_FIRMWARE_VER	 0x11
 #define TK_MODULE_VER    0x08
+#elif defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
+#define TK_FIRMWARE_VER	 0x03
+#define TK_MODULE_VER    0x04
 #else
 #define TK_FIRMWARE_VER	 0x04
 #define TK_MODULE_VER    0x00
@@ -101,7 +104,8 @@
 	|| defined(CONFIG_MACH_M0)\
 	|| defined(CONFIG_MACH_C1)\
 	|| defined(CONFIG_MACH_M3)\
-	|| defined(CONFIG_MACH_T0)
+	|| defined(CONFIG_MACH_T0)\
+	|| defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
 #define TK_HAS_AUTOCAL
 #endif
 
@@ -121,7 +125,8 @@
 	|| defined(CONFIG_MACH_M0)\
 	|| defined(CONFIG_MACH_C1)\
 	|| defined(CONFIG_MACH_M3)\
-	|| defined(CONFIG_MACH_T0)
+	|| defined(CONFIG_MACH_T0)\
+	|| defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
 #define TK_HAS_FIRMWARE_UPDATE
 #endif
 

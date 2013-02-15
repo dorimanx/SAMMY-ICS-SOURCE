@@ -548,6 +548,11 @@
  *	%NL80211_ATTR_IFINDEX is now on %NL80211_ATTR_WIPHY_FREQ with
  *	%NL80211_ATTR_WIPHY_CHANNEL_TYPE.
  *
+ * @NL80211_CMD_CONN_FAILED: connection request to an AP failed; used to
+ *	notify userspace that AP has rejected the connection request from a
+ *	station, due to particular reason. %NL80211_ATTR_CONN_FAILED_REASON
+ *	is used for this.
+ *
  * @NL80211_CMD_BTCOEX: Send BTCOEX command to firmware.  This is
  *  used by the firmware to be aware of BT traffic and share radio
  *	between WiFi and BT.
@@ -592,10 +597,8 @@ enum nl80211_commands {
 
 	NL80211_CMD_GET_BEACON,
 	NL80211_CMD_SET_BEACON,
-	NL80211_CMD_START_AP,
-	NL80211_CMD_NEW_BEACON = NL80211_CMD_START_AP,
-	NL80211_CMD_STOP_AP,
-	NL80211_CMD_DEL_BEACON = NL80211_CMD_STOP_AP,
+	NL80211_CMD_NEW_BEACON,
+	NL80211_CMD_DEL_BEACON,
 
 	NL80211_CMD_GET_STATION,
 	NL80211_CMD_SET_STATION,
@@ -710,10 +713,12 @@ enum nl80211_commands {
 	NL80211_CMD_SET_NOACK_MAP, /* just to maintain ABI with CH_SWITCH_NOTIFY */
 
 	NL80211_CMD_CH_SWITCH_NOTIFY,
+
+	NL80211_CMD_CONN_FAILED,
+
 	NL80211_CMD_SET_MAC_ACL,
+
 	NL80211_CMD_BTCOEX,
-	NL80211_CMD_P2P_FLUSH,
-	NL80211_CMD_PRIV_EVENT,
 
 	/* add new commands above here */
 
@@ -816,7 +821,7 @@ enum nl80211_commands {
  * @NL80211_ATTR_MPATH_NEXT_HOP: MAC address of the next hop for a mesh path.
  * @NL80211_ATTR_MPATH_INFO: information about a mesh_path, part of mesh path
  *	info given for %NL80211_CMD_GET_MPATH, nested attribute described at
- *	&enum nl80211_mpath_info.
+ *&enum nl80211_mpath_info.
  *
  * @NL80211_ATTR_MNTR_FLAGS: flags, nested element with NLA_FLAG attributes of
  *      &enum nl80211_mntr_flags.
@@ -1213,6 +1218,19 @@ enum nl80211_commands {
  * @NL80211_ATTR_BG_SCAN_PERIOD: Background scan period in seconds
  *      or 0 to disable background scan.
  *
+ * @NL80211_ATTR_WDEV: wireless device identifier, used for pseudo-devices
+ *	that don't have a netdev (u64)
+ *
+ * @NL80211_ATTR_USER_REG_HINT_TYPE: type of regulatory hint passed from
+ *	userspace. If unset it is assumed the hint comes directly from
+ *	a user. If set code could specify exactly what type of source
+ *	was used to provide the hint. For the different types of
+ *	allowed user regulatory hints see nl80211_user_reg_hint_type.
+ *
+ * @NL80211_ATTR_CONN_FAILED_REASON: The reason for which AP has rejected
+ *	the connection request from a station. nl80211_connect_failed_reason
+ *	enum has different reasons of connection failure.
+ *
  * @NL80211_ATTR_BTCOEX_DATA: BT coex wmi command.
  *
  * @NL80211_ATTR_ACS: Enable automatic channel selection by the driver
@@ -1468,6 +1486,7 @@ enum nl80211_attrs {
 	NL80211_ATTR_DFS_REGION,
 
 	NL80211_ATTR_DISABLE_HT,
+
 	NL80211_ATTR_HT_CAPABILITY_MASK,
 
 	NL80211_ATTR_NOACK_MAP,
@@ -1477,6 +1496,12 @@ enum nl80211_attrs {
 	NL80211_ATTR_RX_SIGNAL_DBM,
 
 	NL80211_ATTR_BG_SCAN_PERIOD,
+
+	NL80211_ATTR_WDEV,
+
+	NL80211_ATTR_USER_REG_HINT_TYPE,
+
+	NL80211_ATTR_CONN_FAILED_REASON,
 
 	NL80211_ATTR_STA_CAP_REQ,
 
@@ -1489,8 +1514,6 @@ enum nl80211_attrs {
 	NL80211_ATTR_ACL_POLICY,
 
 	NL80211_ATTR_BTCOEX_DATA,
-
-	NL80211_ATTR_PRIV_EVENT,
 
 	/* add attributes here, update the policy in nl80211.c */
 
@@ -1543,6 +1566,7 @@ enum nl80211_attrs {
 
 /* default RSSI threshold for scan results if none specified. */
 #define NL80211_SCAN_RSSI_THOLD_OFF		-300
+
 #define NL80211_CQM_TXE_MAX_INTVL		1800
 
 /**
@@ -2921,4 +2945,16 @@ enum nl80211_acl_policy_attr {
 	NL80211_ACL_POLICY_ACCEPT,
 	NL80211_ACL_POLICY_DENY,
 };
+
+/**
+ * enum nl80211_connect_failed_reason - connection request failed reasons
+ * @NL80211_CONN_FAIL_MAX_CLIENTS: Maximum number of clients that can be
+ *	handled by the AP is reached.
+ * @NL80211_CONN_FAIL_BLOCKED_CLIENT: Client's MAC is in the AP's blocklist.
+ * */
+enum nl80211_connect_failed_reason {
+	NL80211_CONN_FAIL_MAX_CLIENTS,
+	NL80211_CONN_FAIL_BLOCKED_CLIENT,
+};
+
 #endif /* __LINUX_NL80211_H */

@@ -26,14 +26,14 @@ struct sec_keyboard_platform_data {
 	int (*wakeup_key)(void);
 	void (*check_uart_path)(bool en);
 	void	(*acc_power)(u8 token, bool active);
-	int (*noti_univ_kbd_dock)(bool attached);
+	int (*noti_univ_kbd_dock)(unsigned int code);
 	void (*register_cb)(struct sec_keyboard_callbacks *cb);
 };
 #endif
 
 struct sec_30pin_callbacks {
 	int (*noti_univ_kdb_dock)(struct sec_30pin_callbacks *cb,
-		bool attached);
+		unsigned int code);
 };
 
 struct acc_con_platform_data {

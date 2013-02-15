@@ -223,6 +223,9 @@ struct modemlink_dpram_control {
 	int max_ipc_dev;
 	struct dpram_ipc_map *ipc_map;
 
+	/* Timeout of waiting for RES_ACK from CP (in msec) */
+	unsigned long res_ack_wait_timeout;
+
 	unsigned boot_size_offset;
 	unsigned boot_tag_offset;
 	unsigned boot_count_offset;

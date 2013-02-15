@@ -85,7 +85,7 @@ Defines a read-only address of the fuse ROM of the AK8963.*/
 #define ECS_IOCTL_GET_ACCEL         _IOR(AKMIO, 0x30, short[3])
 
 struct akm8963_platform_data {
-	char layout;
+	char (*layout) (void);
 	char outbit;
 	int gpio_DRDY;
 	int gpio_RST;
