@@ -95,7 +95,7 @@ static int get_hdlc_size(struct io_device *iod, char *buf)
 	struct raw_hdr *raw_header;
 	struct rfs_hdr *rfs_header;
 
-	pr_debug("[MODEM_IF] buf : %02x %02x %02x (%d)\n", *buf, *(buf + 1),
+	pr_debug("MIF: buf : %02x %02x %02x (%d)\n", *buf, *(buf + 1),
 				*(buf + 2), __LINE__);
 
 	switch (iod->format) {
@@ -180,12 +180,12 @@ static int rx_hdlc_head_check(struct io_device *iod, char *buf, unsigned rest)
 	if (!hdr->start) {
 		len = rx_hdlc_head_start_check(buf);
 		if (len < 0) {
-			pr_err("[MODEM_IF] Wrong HDLC start: 0x%x(%s)\n",
+			pr_err("MIF: Wrong HDLC start: 0x%x(%s)\n",
 						*buf, iod->name);
 			return len; /*Wrong hdlc start*/
 		}
 
-		pr_debug("[MODEM_IF] check len : %d, rest : %d (%d)\n", len,
+		pr_debug("MIF: check len : %d, rest : %d (%d)\n", len,
 					rest, __LINE__);
 
 		/* set the start flag of current packet */
@@ -197,7 +197,7 @@ static int rx_hdlc_head_check(struct io_device *iod, char *buf, unsigned rest)
 		rest -= len; /* rest, call by value */
 	}
 
-	pr_debug("[MODEM_IF] check len : %d, rest : %d (%d)\n", len, rest,
+	pr_debug("MIF: check len : %d, rest : %d (%d)\n", len, rest,
 				__LINE__);
 
 	/* store the IPC header to iod priv */
@@ -218,7 +218,7 @@ static int rx_hdlc_head_check(struct io_device *iod, char *buf, unsigned rest)
 		done_len += len;
 	}
 
-	pr_debug("[MODEM_IF] check done_len : %d, rest : %d (%d)\n", done_len,
+	pr_debug("MIF: check done_len : %d, rest : %d (%d)\n", done_len,
 				rest, __LINE__);
 	return done_len;
 }
@@ -352,7 +352,7 @@ static int rx_iodev_skb_raw(struct io_device *iod)
 		return err;
 
 	default:
-		pr_err("[MODEM_IF] wrong io_type : %d\n", iod->io_typ);
+		pr_err("MIF: wrong io_type : %d\n", iod->io_typ);
 		return -EINVAL;
 	}
 }
@@ -372,7 +372,7 @@ static void rx_iodev_work(struct work_struct *work)
 
 		ret = rx_iodev_skb_raw(real_iod);
 		if (ret == NET_RX_DROP) {
-			pr_err("[MODEM_IF] %s: queue delayed work!\n",
+			pr_err("MIF: %s: queue delayed work!\n",
 								__func__);
 			skb_queue_head(&iod->sk_rx_q, skb);
 			schedule_delayed_work(&iod->rx_work,
@@ -397,7 +397,7 @@ static int rx_multipdp(struct io_device *iod)
 	ch = raw_header->channel;
 	real_iod = io_raw_devs->raw_devices[ch];
 	if (!real_iod) {
-		pr_err("[MODEM_IF] %s: wrong channel %d\n", __func__, ch);
+		pr_err("MIF: %s: wrong channel %d\n", __func__, ch);
 		return -1;
 	}
 
@@ -421,7 +421,7 @@ static int rx_iodev_skb(struct io_device *iod)
 	default:
 		skb_queue_tail(&iod->sk_rx_q, iod->skb_recv);
 
-		pr_debug("[MODEM_IF] wake up fmt,rfs skb\n");
+		pr_debug("MIF: wake up fmt,rfs skb\n");
 		wake_up(&iod->wq);
 		return 0;
 	}
@@ -441,7 +441,7 @@ static int rx_hdlc_packet(struct io_device *iod, const char *data,
 	if (rest <= 0)
 		goto exit;
 
-	pr_debug("[MODEM_IF] RX_SIZE=%d\n", rest);
+	pr_debug("MIF: RX_SIZE=%d\n", rest);
 
 	if (iod->h_data.flag_len)
 		goto data_check;
@@ -450,7 +450,7 @@ next_frame:
 	err = len = rx_hdlc_head_check(iod, buf, rest);
 	if (err < 0)
 		goto exit; /* buf++; rest--; goto next_frame; */
-	pr_debug("[MODEM_IF] check len : %d, rest : %d (%d)\n", len, rest,
+	pr_debug("MIF: check len : %d, rest : %d (%d)\n", len, rest,
 				__LINE__);
 
 	buf += len;
@@ -462,7 +462,7 @@ data_check:
 	err = len = rx_hdlc_data_check(iod, buf, rest);
 	if (err < 0)
 		goto exit;
-	pr_debug("[MODEM_IF] check len : %d, rest : %d (%d)\n", len, rest,
+	pr_debug("MIF: check len : %d, rest : %d (%d)\n", len, rest,
 				__LINE__);
 
 	/* If the lenght of actual data is odd. Skip the dummy bit*/
@@ -481,11 +481,11 @@ data_check:
 
 	err = len = rx_hdlc_tail_check(buf);
 	if (err < 0) {
-		pr_err("[MODEM_IF] Wrong HDLC end: 0x%x(%s)\n",
+		pr_err("MIF: Wrong HDLC end: 0x%x(%s)\n",
 					*buf, iod->name);
 		goto exit;
 	}
-	pr_debug("[MODEM_IF] check len : %d, rest : %d (%d)\n", len, rest,
+	pr_debug("MIF: check len : %d, rest : %d (%d)\n", len, rest,
 				__LINE__);
 
 	/* Skip the dummy byte inserted for 2-byte alignment in header.
@@ -543,7 +543,7 @@ static int io_dev_recv_data_from_link_dev(struct io_device *iod,
 	case IPC_MULTI_RAW:
 		err = rx_hdlc_packet(iod, data, len);
 		if (err < 0)
-			pr_err("[MODEM_IF] fail process hdlc fram\n");
+			pr_err("MIF: fail process hdlc fram\n");
 		return err;
 
 	case IPC_CMD:
@@ -555,15 +555,15 @@ static int io_dev_recv_data_from_link_dev(struct io_device *iod,
 		/* save packet to sk_buff */
 		skb = alloc_skb(len, GFP_ATOMIC);
 		if (!skb) {
-			pr_err("[MODEM_IF] fail alloc skb (%d)\n", __LINE__);
+			pr_err("MIF: fail alloc skb (%d)\n", __LINE__);
 			return -ENOMEM;
 		}
 
-		pr_info("[MODEM_IF] boot/ramdump len : %d\n", len);
+		pr_info("MIF: boot/ramdump len : %d\n", len);
 
 		memcpy(skb_put(skb, len), data, len);
 		skb_queue_tail(&iod->sk_rx_q, skb);
-		pr_info("[MODEM_IF] skb len : %d\n", skb->len);
+		pr_info("MIF: skb len : %d\n", skb->len);
 
 		wake_up(&iod->wq);
 		return len;
@@ -580,7 +580,7 @@ static void io_dev_modem_state_changed(struct io_device *iod,
 			enum modem_state state)
 {
 	iod->mc->phone_state = state;
-	pr_info("[MODEM_IF] %s state changed: %s\n", \
+	pr_info("MIF: %s state changed: %s\n", \
 				iod->name, modem_state_name[state]);
 
 	if (state == STATE_CRASH_EXIT)
@@ -592,7 +592,7 @@ static int misc_open(struct inode *inode, struct file *filp)
 	struct io_device *iod = to_io_device(filp->private_data);
 	filp->private_data = (void *)iod;
 
-	pr_info("[MODEM_IF] misc_open : %s\n", iod->name);
+	pr_info("MIF: misc_open : %s\n", iod->name);
 
 	if (iod->link->init_comm)
 		return iod->link->init_comm(iod->link, iod);
@@ -603,7 +603,7 @@ static int misc_release(struct inode *inode, struct file *filp)
 {
 	struct io_device *iod = (struct io_device *)filp->private_data;
 
-	pr_info("[MODEM_IF] misc_release : %s\n", iod->name);
+	pr_info("MIF: misc_release : %s\n", iod->name);
 
 	if (iod->link->terminate_comm)
 		iod->link->terminate_comm(iod->link, iod);
@@ -623,8 +623,8 @@ static unsigned int misc_poll(struct file *filp,
 				&& (iod->mc->phone_state != STATE_OFFLINE))
 		return POLLIN | POLLRDNORM;
 	else if (iod->mc->phone_state == STATE_CRASH_EXIT) {
-		pr_err("MIF : <%s> iod = %s, state = %s. return POLLHUP\n",
-			__func__, iod->name,
+		printk_ratelimited(KERN_ERR "MIF: <%s> iod = %s, state = %s. "
+			"return POLLHUP\n", __func__, iod->name,
 			modem_state_name[iod->mc->phone_state]);
 		return POLLHUP;
 	}
@@ -636,52 +636,52 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 {
 	struct io_device *iod = (struct io_device *)filp->private_data;
 
-	pr_info("MIF : <%s> cmd = 0x%X\n", __func__, cmd);
+	pr_debug("MIF: <%s> cmd = 0x%X\n", __func__, cmd);
 
 	switch (cmd) {
 	case IOCTL_MODEM_ON:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_ON\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_ON\n");
 		return iod->mc->ops.modem_on(iod->mc);
 
 	case IOCTL_MODEM_OFF:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_OFF\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_OFF\n");
 		return iod->mc->ops.modem_off(iod->mc);
 
 	case IOCTL_MODEM_RESET:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_RESET\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_RESET\n");
 		return iod->mc->ops.modem_reset(iod->mc);
 
 	case IOCTL_MODEM_FORCE_CRASH_EXIT:
-		pr_info("[MODEM_IF] misc_ioctl : MODEM_FORCE_CRASH_EXIT\n");
+		pr_info("MIF: misc_ioctl : MODEM_FORCE_CRASH_EXIT\n");
 		return iod->mc->ops.modem_force_crash_exit(iod->mc);
 
 	case IOCTL_MODEM_DUMP_RESET:
-		pr_info("[MODEM_IF] misc_ioctl : MODEM_FORCE_CRASH_EXIT\n");
+		pr_info("MIF: misc_ioctl : MODEM_FORCE_CRASH_EXIT\n");
 		return iod->mc->ops.modem_dump_reset(iod->mc);
 
 	case IOCTL_MODEM_BOOT_ON:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_BOOT_ON\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_BOOT_ON\n");
 		return iod->mc->ops.modem_boot_on(iod->mc);
 
 	case IOCTL_MODEM_BOOT_OFF:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_BOOT_OFF\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_BOOT_OFF\n");
 		return iod->mc->ops.modem_boot_off(iod->mc);
 
 	/* TODO - will remove this command after ril updated */
 	case IOCTL_MODEM_START:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_START\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_START\n");
 		return 0;
 
 	case IOCTL_MODEM_STATUS:
-		pr_debug("[MODEM_IF] misc_ioctl : IOCTL_MODEM_STATUS\n");
+		pr_debug("MIF: <%s> MODEM_STATUS\n", __func__);
 		return iod->mc->phone_state;
 
 	case IOCTL_MODEM_DUMP_START:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_DUMP_START\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_DUMP_START\n");
 		return iod->link->dump_start(iod->link, iod);
 
 	case IOCTL_MODEM_DUMP_UPDATE:
-		pr_info("[MODEM_IF] misc_ioctl : IOCTL_MODEM_DUMP_UPDATE\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_DUMP_UPDATE\n");
 		return iod->link->dump_update(iod->link, iod, _arg);
 
 	case IOCTL_MODEM_GOTA_START:
@@ -693,11 +693,11 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 		return iod->link->modem_update(iod->link, iod, _arg);
 
 	case IOCTL_MODEM_RAMDUMP_START:
-		pr_info("[GOTA] misc_ioctl : IOCTL_MODEM_RAMDUMP_START\n");
+		pr_info("MIF: <%s> IOCTL_MODEM_RAMDUMP_START\n", __func__);
 		return iod->link->start_ramdump(iod->link, iod);
 
 	case IOCTL_MODEM_RAMDUMP_STOP:
-		pr_info("[GOTA] misc_ioctl : IOCTL_MODEM_RAMDUMP_START\n");
+		pr_info("MIF: <%s> IOCTL_MODEM_RAMDUMP_STOP\n", __func__);
 		return iod->link->stop_ramdump(iod->link, iod);
 
 	default:
@@ -713,7 +713,7 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 	char frame_header_buf[sizeof(struct raw_hdr)];
 	struct sk_buff *skb;
 
-	pr_info("MIF : <%s+> cnt = %d\n", __func__, count);
+	pr_debug("MIF: <%s+> cnt = %d\n", __func__, count);
 
 	/* TODO - check here flow control for only raw data */
 
@@ -725,7 +725,7 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 
 	skb = alloc_skb(frame_len, GFP_KERNEL);
 	if (!skb) {
-		pr_err("[MODEM_IF] fail alloc skb (%d)\n", __LINE__);
+		pr_err("MIF: fail alloc skb (%d)\n", __LINE__);
 		return -ENOMEM;
 	}
 
@@ -774,8 +774,8 @@ static ssize_t misc_write(struct file *filp, const char __user * buf,
 
 	/* send data with sk_buff, link device will put sk_buff
 	 * into the specific sk_buff_q and run work-q to send data
-	 */
-	pr_debug("MIF : <%s->\n", __func__);
+	*/
+	pr_debug("MIF: <%s->\n", __func__);
 
 	return iod->link->send(iod->link, iod, skb);
 }
@@ -787,34 +787,34 @@ static ssize_t misc_read(struct file *filp, char *buf, size_t count,
 	struct sk_buff *skb;
 	int pktsize = 0;
 
-	pr_debug("MIF : <%s+> count = %d\n", __func__, count);
+	pr_debug("MIF: <%s+> count = %d\n", __func__, count);
 
 	if (iod->format == IPC_RAMDUMP && iod->ramdump_size)
 		iod->link->read_ramdump(iod->link, iod);
 
 	skb = skb_dequeue(&iod->sk_rx_q);
 	if (!skb) {
-		printk_ratelimited(KERN_ERR "[MODEM_IF] no data from sk_rx_q, "
-			"modem_state : %s(%s)\n",
+		printk_ratelimited(KERN_ERR "MIF: no data from sk_rx_q, "
+			"modem_state = %s, device = %s\n",
 			modem_state_name[iod->mc->phone_state], iod->name);
 		return 0;
 	}
 
 	if (skb->len > count) {
-		pr_err("[MODEM_IF] skb len is too big = %d,%d!(%d)\n",
+		pr_err("MIF: skb len is too big = %d,%d!(%d)\n",
 				count, skb->len, __LINE__);
 		dev_kfree_skb_any(skb);
 		return -EIO;
 	}
-	pr_debug("[MODEM_IF] skb len : %d\n", skb->len);
+	pr_debug("MIF: skb len : %d\n", skb->len);
 
 	pktsize = skb->len;
 	if (copy_to_user(buf, skb->data, pktsize) != 0)
 		return -EIO;
 	dev_kfree_skb_any(skb);
 
-	pr_debug("[MODEM_IF] copy to user : %d\n", pktsize);
-	pr_info("MIF : <%s> len = %d\n", __func__, pktsize);
+	pr_debug("MIF: copy to user : %d\n", pktsize);
+	pr_debug("MIF: <%s> len = %d\n", __func__, pktsize);
 
 	return pktsize;
 }
@@ -849,7 +849,7 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 	struct vnet *vnet = netdev_priv(ndev);
 	struct io_device *iod = vnet->iod;
 
-	pr_debug("MIF : <%s+>\n", __func__);
+	pr_debug("MIF: <%s+>\n", __func__);
 
 	/* umts doesn't need to discard ethernet header */
 	/*
@@ -864,14 +864,14 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 	hd.control = 0;
 	hd.channel = iod->id & 0x1F;
 
-	pr_debug("MIF : <%s> ch = %d, len = %d\n", __func__,
+	pr_debug("MIF: <%s> ch = %d, len = %d\n", __func__,
 		hd.channel, hd.len);
 
 	skb_new = skb_copy_expand(skb, sizeof(hd) + sizeof(hdlc_start),
 				sizeof(hdlc_end), GFP_ATOMIC);
 	if (!skb_new) {
 		dev_kfree_skb_any(skb);
-		pr_info("MIF : <%s-> -ENOMEM\n", __func__);
+		pr_info("MIF: <%s-> -ENOMEM\n", __func__);
 		return -ENOMEM;
 	}
 
@@ -883,7 +883,7 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 	ret = iod->link->send(iod->link, iod, skb_new);
 	if (ret < 0) {
 		dev_kfree_skb_any(skb);
-		pr_info("MIF : <%s-> NETDEV_TX_BUSY\n", __func__);
+		pr_info("MIF: <%s-> NETDEV_TX_BUSY\n", __func__);
 		return NETDEV_TX_BUSY;
 	}
 
@@ -891,7 +891,7 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 	ndev->stats.tx_bytes += skb->len;
 	dev_kfree_skb_any(skb);
 
-	pr_debug("MIF : <%s->\n", __func__);
+	pr_debug("MIF: <%s->\n", __func__);
 
 	return NETDEV_TX_OK;
 }
@@ -972,9 +972,9 @@ int init_io_device(struct io_device *iod)
 		if (ret)
 			free_netdev(iod->ndev);
 
-		pr_info("%s: %d(iod:0x%p)\n", __func__, __LINE__, iod);
+		pr_info("MIF: <%s> iod : 0x%p)\n", __func__, iod);
 		vnet = netdev_priv(iod->ndev);
-		pr_info("%s: %d(vnet:0x%p)\n", __func__, __LINE__, vnet);
+		pr_info("MIF: <%s> vnet : 0x%p)\n", __func__, vnet);
 		vnet->iod = iod;
 
 		break;
@@ -990,7 +990,7 @@ int init_io_device(struct io_device *iod)
 		return -EINVAL;
 	}
 
-	pr_info("[MODEM_IF] %s(%d) : init_io_device() done : %d\n",
+	pr_info("MIF: %s(%d) : init_io_device() done : %d\n",
 				iod->name, iod->io_typ, ret);
 	return ret;
 }

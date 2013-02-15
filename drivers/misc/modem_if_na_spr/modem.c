@@ -60,12 +60,12 @@ static struct modem_ctl *create_modemctl_device(struct platform_device *pdev)
 	/* init modemctl device for getting modemctl operations */
 	ret = call_modem_init_func(modemctl, pdata);
 	if (ret) {
-		printk(KERN_ERR "[MODEM_IF] call_modem_init_func is failed\n");
+		printk(KERN_ERR "MIF: call_modem_init_func is failed\n");
 		kfree(modemctl);
 		return NULL;
 	}
 
-	pr_info("[MODEM_IF] %s:create_modemctl_device DONE\n", modemctl->name);
+	pr_info("MIF: %s:create_modemctl_device DONE\n", modemctl->name);
 	return modemctl;
 }
 
@@ -79,7 +79,7 @@ static struct io_device *create_io_device(struct modem_io_t *io_t,
 
 	iod = kzalloc(sizeof(struct io_device), GFP_KERNEL);
 	if (!iod) {
-		pr_err("[MODEM_IF] io device memory alloc fail\n");
+		pr_err("MIF: io device memory alloc fail\n");
 		return NULL;
 	}
 
@@ -101,7 +101,7 @@ static struct io_device *create_io_device(struct modem_io_t *io_t,
 		return NULL;
 	}
 
-	pr_info("[MODEM_IF] %s : create_io_device DONE\n", io_t->name);
+	pr_info("MIF: %s : create_io_device DONE\n", io_t->name);
 	return iod;
 }
 static int __devinit modem_probe(struct platform_device *pdev)
@@ -120,7 +120,7 @@ static int __devinit modem_probe(struct platform_device *pdev)
 
 	modemctl = create_modemctl_device(pdev);
 	if (!modemctl) {
-		printk(KERN_ERR "[MODEM_IF] modemctl is null\n");
+		printk(KERN_ERR "MIF: modemctl is null\n");
 		return -ENOMEM;
 	}
 	/* create link device */
@@ -130,7 +130,7 @@ static int __devinit modem_probe(struct platform_device *pdev)
 
 	io_raw_devs = kzalloc(sizeof(struct io_raw_devices), GFP_KERNEL);
 	if (!io_raw_devs) {
-		printk(KERN_ERR "[MODEM_IF] io_raw_devs is null\n");
+		printk(KERN_ERR "MIF: io_raw_devs is null\n");
 		return -ENOMEM;
 	}
 
@@ -157,7 +157,7 @@ static int __devinit modem_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, modemctl);
 
-	pr_info("[MODEM_IF] modem_probe DONE\n");
+	pr_info("MIF: modem_probe DONE\n");
 
 	return 0;
 

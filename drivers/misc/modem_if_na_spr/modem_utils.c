@@ -73,11 +73,11 @@ int link_rx_flowctl_cmd(struct link_device *ld, const char *data, size_t len)
 	struct io_device *iod = NULL, *multi_raw_iod;
 	int i;
 
-	pr_debug("[MODEM_IF] flow control cmd: size=%d\n", len);
+	pr_debug("MIF: flow control cmd: size=%d\n", len);
 
 	multi_raw_iod = find_iodev(ld, IPC_MULTI_RAW);
 	if (!multi_raw_iod || !multi_raw_iod->private_data) {
-		pr_err("[MODEM_IF] %s: no multi raw device\n", __func__);
+		pr_err("MIF: %s: no multi raw device\n", __func__);
 		return -ENODEV;
 	}
 
@@ -89,7 +89,7 @@ int link_rx_flowctl_cmd(struct link_device *ld, const char *data, size_t len)
 					netif_stop_queue(iod->ndev);
 			}
 			ld->raw_tx_suspended = true;
-			pr_info("[MODEM_IF] flowctl CMD_SUSPEND(%04X)\n", *cmd);
+			pr_info("MIF: flowctl CMD_SUSPEND(%04X)\n", *cmd);
 			break;
 
 		case CMD_RESUME:
@@ -99,11 +99,11 @@ int link_rx_flowctl_cmd(struct link_device *ld, const char *data, size_t len)
 			}
 			ld->raw_tx_suspended = false;
 			complete_all(&ld->raw_tx_resumed_by_cp);
-			pr_info("[MODEM_IF] flowctl CMD_RESUME(%04X)\n", *cmd);
+			pr_info("MIF: flowctl CMD_RESUME(%04X)\n", *cmd);
 			break;
 
 		default:
-			pr_err("[MODEM_IF] flowctl BAD CMD: %04X\n", *cmd);
+			pr_err("MIF: flowctl BAD CMD: %04X\n", *cmd);
 			break;
 		}
 	}
@@ -173,7 +173,7 @@ void print_sipc4_hdlc_fmt_frame(const u8 *psrc)
 	data = frm + (hh_len + fh_len);
 	dlen = hh->len - (hh_len + fh_len);
 
-	pr_err("--------------------HDLC & FMT HEADER----------------------\n");
+	pr_err("------------HDLC & FMT HEADER--------------------\n");
 
 	pr_err("HDLC len = %d, HDLC control = 0x%02x\n", hh->len, hh->control);
 
@@ -181,7 +181,7 @@ void print_sipc4_hdlc_fmt_frame(const u8 *psrc)
 		fh->main_cmd, fh->sub_cmd, fh->cmd_type,
 		fh->msg_seq, fh->ack_seq, fh->len);
 
-	pr_err("-----------------------IPC FMT DATA------------------------\n");
+	pr_err("------------IPC FMT DATA------------------------\n");
 
 	if (dlen > 0) {
 		if (dlen > 64)
@@ -189,7 +189,7 @@ void print_sipc4_hdlc_fmt_frame(const u8 *psrc)
 		mif_print_data(data, dlen);
 	}
 
-	pr_err("-----------------------------------------------------------\n");
+	pr_err("------------------------------------------------\n");
 }
 
 void print_sipc4_fmt_frame(const u8 *psrc)
@@ -203,18 +203,18 @@ void print_sipc4_fmt_frame(const u8 *psrc)
 	data = (u8 *)(psrc + fh_len);
 	dlen = fh->len - fh_len;
 
-	pr_err("----------------------IPC FMT HEADER-----------------------\n");
+	pr_err("--------------IPC FMT HEADER-----------------------\n");
 
 	pr_err("(M)0x%02X, (S)0x%02X, (T)0x%02X, mseq:%d, aseq:%d, len:%d\n",
 		fh->main_cmd, fh->sub_cmd, fh->cmd_type,
 		fh->msg_seq, fh->ack_seq, fh->len);
 
-	pr_err("-----------------------IPC FMT DATA------------------------\n");
+	pr_err("-------------IPC FMT DATA------------------------\n");
 
 	if (dlen > 0)
 		mif_print_data(data, dlen);
 
-	pr_err("-----------------------------------------------------------\n");
+	pr_err("-------------------------------------------------\n");
 }
 
 static void print_tcp_header(u8 *pkt)
@@ -322,7 +322,7 @@ void print_ip4_packet(u8 *ip_pkt)
 	u16 flags = (ntohs(iph->frag_off) & 0xE000);
 	u16 frag_off = (ntohs(iph->frag_off) & 0x1FFF);
 
-	pr_err("-----------------------------------------------------------\n");
+	pr_err("-----------------------------------------------------\n");
 
 /*---------------------------------------------------------------------------
 
@@ -361,7 +361,8 @@ void print_ip4_packet(u8 *ip_pkt)
 	if (flags & IP_MF)
 		strcat(ip_flags, "MF ");
 
-	pr_err("IP4:: Version = %u, Header Length = %u, TOS = %u, Length = %u\n",
+	pr_err("IP4:: Version = %u, Header Length = %u,
+		TOS = %u, Length = %u\n",
 		iph->version, (iph->ihl << 2), iph->tos, ntohs(iph->tot_len));
 	pr_err("IP4:: ID = %u, Fragment Offset = %u\n",
 		ntohs(iph->id), frag_off);
@@ -387,5 +388,5 @@ void print_ip4_packet(u8 *ip_pkt)
 		break;
 	}
 
-	pr_err("-----------------------------------------------------------\n");
+	pr_err("------------------------------------------------\n");
 }

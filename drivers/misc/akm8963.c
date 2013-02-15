@@ -1653,7 +1653,7 @@ int akm8963_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	pdata = client->dev.platform_data;
 	if (pdata) {
 		/* Platform data is available. copy its value to local. */
-		s_akm->layout = pdata->layout;
+		s_akm->layout = pdata->layout();
 		s_akm->outbit = pdata->outbit;
 		s_akm->rstn = pdata->gpio_RST;
 	} else {
