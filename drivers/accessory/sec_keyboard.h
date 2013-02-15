@@ -61,13 +61,14 @@ struct sec_keyboard_drvdata {
 #endif
 	void	(*acc_power)(u8 token, bool active);
 	void (*check_uart_path)(bool en);
-	int (*noti_univ_kbd_dock)(bool attached);
+	int (*noti_univ_kbd_dock)(unsigned int code);
 	bool led_on;
 	bool dockconnected;
 	bool pre_connected;
 	bool pressed[KEYBOARD_SIZE];
 	bool pre_uart_path;
 	bool tx_ready;
+	bool univ_kbd_dock;
 	int acc_int_gpio;
 	unsigned int remap_key;
 	unsigned int kl;
@@ -76,9 +77,6 @@ struct sec_keyboard_drvdata {
 	unsigned short keycode[KEYBOARD_SIZE];
 	unsigned long connected_time;
 	unsigned long disconnected_time;
-	int cable_type;
-	int cable_sub_type;
-	int cable_pwr_type;
 };
 
 static const unsigned short sec_keycodes[KEYBOARD_SIZE] = {

@@ -399,7 +399,6 @@ static void acc_check_dock_detection(struct acc_con_info *acc)
 		ACC_CONDEV_DBG("[30PIN] failed to get acc state!!!");
 		return;
 	}
-
 	if (!acc->pdata->get_dock_state()) {
 #ifdef CONFIG_SEC_KEYBOARD_DOCK
 		if (acc->pdata->check_keyboard &&
@@ -424,7 +423,6 @@ static void acc_check_dock_detection(struct acc_con_info *acc)
 			acc->current_dock = DOCK_DESK;
 			acc->cable_type = POWER_SUPPLY_TYPE_DOCK;
 			acc->cable_sub_type = ONLINE_SUB_TYPE_DESK;
-			acc_dock_psy(acc);
 
 #if defined(CONFIG_MHL_SII9234) || defined(CONFIG_SAMSUNG_MHL_9290)
 			mutex_lock(&acc->lock);
@@ -448,7 +446,6 @@ static void acc_check_dock_detection(struct acc_con_info *acc)
 		acc->current_dock = DOCK_NONE;
 		acc->cable_type = POWER_SUPPLY_TYPE_BATTERY;
 		acc->cable_sub_type = ONLINE_SUB_TYPE_UNKNOWN;
-		acc_dock_psy(acc);
 #ifdef CONFIG_SEC_KEYBOARD_DOCK
 		if (acc->pdata->check_keyboard)
 			acc->pdata->check_keyboard(false);
@@ -457,7 +454,6 @@ static void acc_check_dock_detection(struct acc_con_info *acc)
 			acc->current_dock = DOCK_NONE;
 			acc->cable_type = POWER_SUPPLY_TYPE_BATTERY;
 			acc->cable_sub_type = ONLINE_SUB_TYPE_UNKNOWN;
-			acc_dock_psy(acc);
 		}
 #endif
 #if defined(CONFIG_MHL_SII9234) || defined(CONFIG_SAMSUNG_MHL_9290)
@@ -474,7 +470,7 @@ static void acc_check_dock_detection(struct acc_con_info *acc)
 		acc_dock_uevent(acc, false);
 
 	}
-
+	acc_dock_psy(acc);
 }
 
 static irqreturn_t acc_dock_isr(int irq, void *ptr)
@@ -577,7 +573,8 @@ err_irq_dock:
 	return ;
 }
 
-static int acc_noti_univkbd_dock(struct sec_30pin_callbacks *cb, bool val)
+static int acc_noti_univkbd_dock(struct sec_30pin_callbacks *cb,
+	unsigned int code)
 {
 	struct acc_con_info *acc =
 		container_of(cb, struct acc_con_info, callbacks);
@@ -586,9 +583,34 @@ static int acc_noti_univkbd_dock(struct sec_30pin_callbacks *cb, bool val)
 	char *stat_ptr;
 	char *envp[3];
 
-	ACC_CONDEV_DBG("universal keyboard noti. callback");
+	ACC_CONDEV_DBG("universal keyboard noti. callback 0x%x", code);
 
-	acc_otg_enable_by_univkbd(acc, val);
+	switch (code) {
+	case 0x68: /*dock is con*/
+		acc_otg_enable_by_univkbd(acc, true);
+		acc->cable_type = POWER_SUPPLY_TYPE_DOCK;
+		acc->cable_sub_type = ONLINE_SUB_TYPE_KBD;
+		acc_dock_psy(acc);
+		break;
+	case 0x69: /*usb charging*/
+		acc->cable_pwr_type = ONLINE_POWER_TYPE_USB;
+		acc_dock_psy(acc);
+		break;
+	case 0x6a: /*USB cable attached */
+		acc_otg_enable_by_univkbd(acc, false);
+		acc->cable_pwr_type = ONLINE_POWER_TYPE_USB;
+		acc_dock_psy(acc);
+		break;
+	case 0x6b: /*TA connection*/
+		acc->cable_pwr_type = ONLINE_POWER_TYPE_TA;
+		acc_dock_psy(acc);
+		break;
+	case 0x6c: /* USB cable detached */
+		acc_otg_enable_by_univkbd(acc, true);
+		acc->cable_pwr_type = ONLINE_POWER_TYPE_BATTERY;
+		acc_dock_psy(acc);
+		break;
+	}
 
 	return 0;
 }

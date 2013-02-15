@@ -45,6 +45,9 @@
 #include <linux/stmpe811-adc.h>
 #endif
 #include <linux/delay.h>
+#ifdef CONFIG_FAST_BOOT
+#include <linux/fake_shut_down.h>
+#endif
 
 static char *supply_list[] = {
 	"battery",
@@ -600,7 +603,7 @@ void battery_event_control(struct battery_info *info)
 					"VIDEO", "MUSIC", "BROWSER",
 					"HOTSPOT", "CAMERA", "DATA CALL",
 					"GPS", "LTE", "WIFI",
-					"USE", "UNKNOWN"
+					"USE", "GPU", "UNKNOWN"
 	};
 
 	pr_debug("%s\n", __func__);
@@ -988,6 +991,9 @@ static bool battery_temper_cond(struct battery_info *info)
 {
 	int ovh_stop, ovh_recover;
 	int frz_stop, frz_recover;
+#if defined(CONFIG_MACH_GC1) && defined(CONFIG_TARGET_LOCALE_USA)
+	int gpu_event = 13;
+#endif
 	pr_debug("%s\n", __func__);
 
 	/* update overheat temperature threshold */
@@ -1016,6 +1022,26 @@ if (
 		frz_stop = info->pdata->freeze_stop_temp;
 		frz_recover = info->pdata->freeze_recovery_temp;
 	}
+
+#if defined(CONFIG_MACH_GC1) && defined(CONFIG_TARGET_LOCALE_USA)
+	if (!info->lpm_state) {
+		if ((info->battery_temper >= info->pdata->overheat_stop_temp)
+			&& (activity_index >= 150)) {
+			ovh_stop = info->pdata->event_overheat_stop_temp;
+			info->event_type |= (1 << gpu_event);
+			pr_info("%s: set gpu(%d) event(0x%04x)\n",
+				__func__, activity_index, info->event_type);
+			battery_event_control(info);
+		} else if (info->event_type & (1 << gpu_event)) {
+			info->event_type &= ~(1 << gpu_event);
+			pr_info("%s: clear gpu(%d) event(0x%04x)\n",
+				__func__, activity_index, info->event_type);
+			battery_event_control(info);
+		} else {
+			pr_debug("%s: No set/clear gpu event case\n", __func__);
+		}
+	}
+#endif
 
 #if defined(CONFIG_MACH_T0_USA_SPR)
 	/* unver rev0.7, do not stop charging by tempereture */
@@ -1260,6 +1286,14 @@ static void battery_indicator_icon(struct battery_info *info)
 		} else if (info->recharge_phase == true) {
 			info->charge_virt_state =
 				POWER_SUPPLY_STATUS_CHARGING;
+		}
+
+		/* in case of fast charging with TA, update charge type */
+		if ((info->cable_type == POWER_SUPPLY_TYPE_MAINS) &&
+			(info->charge_type == POWER_SUPPLY_CHARGE_TYPE_FAST) &&
+			(info->input_current < info->pdata->in_curr_limit)) {
+			pr_debug("%s: slow charge state\n", __func__);
+			info->charge_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
 		}
 
 		if (info->temper_state == true) {
@@ -1767,9 +1801,14 @@ monitor_finish:
 	pr_debug("%s: state=%d, soc=%d, fake_shut_down=%d\n", __func__,
 		info->charge_virt_state, info->battery_soc, fake_shut_down);
 
-	if ((info->charge_virt_state == POWER_SUPPLY_STATUS_DISCHARGING)
-		&& (info->battery_soc == 0) && (fake_shut_down)) {
-		low_batt_power_off = true;
+	if (fake_shut_down) {
+		if ((info->charge_virt_state ==
+			POWER_SUPPLY_STATUS_DISCHARGING)
+			&& (info->battery_soc == 0))
+			low_batt_power_off = true;
+
+		pr_info("%s: fake_shut_down mode, skip updating status\n",
+			__func__);
 		goto skip_updating_status;
 	}
 #endif
@@ -1789,6 +1828,10 @@ monitor_finish:
 	info->prev_charge_virt_state = info->charge_virt_state;
 	info->prev_battery_soc = info->battery_soc;
 
+#ifdef CONFIG_FAST_BOOT
+skip_updating_status:
+#endif
+
 	/* if cable is detached in lpm, guarantee some secs for playlpm */
 	if ((info->lpm_state == true) &&
 		(info->cable_type == POWER_SUPPLY_TYPE_BATTERY)) {
@@ -1800,13 +1843,19 @@ monitor_finish:
 					msecs_to_jiffies(1000));
 	}
 
-#ifdef CONFIG_FAST_BOOT
-skip_updating_status:
-#endif
 	mutex_unlock(&info->mon_lock);
 
 #ifdef CONFIG_FAST_BOOT
-	if (low_batt_power_off == true) {
+	if (((info->cable_type == POWER_SUPPLY_TYPE_MAINS)
+		|| (info->cable_type == POWER_SUPPLY_TYPE_USB)
+		|| (info->cable_type == POWER_SUPPLY_TYPE_USB_CDP))
+		&& (fake_shut_down) && (!info->dup_power_off)
+		&& (!info->suspend_check)) {
+		pr_info("%s: Resetting the device in fake shutdown mode"\
+			"(TA/USB inserted !!!)\n", __func__);
+		info->dup_power_off = true;
+		kernel_power_off();
+	} else if (low_batt_power_off == true) {
 		pr_info("%s: Power off the device in fake shutdown mode"\
 			"(soc==0, discharging !!!)\n", __func__);
 
@@ -2158,6 +2207,25 @@ static irqreturn_t battery_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_FAST_BOOT
+int fsd_notifier_call(struct notifier_block *nb,
+			unsigned long cmd, void *_param)
+{
+	struct battery_info *info = container_of(nb, struct battery_info,
+						 fsd_notifier_block);
+	ktime_t next;
+
+	pr_info("%s: fsd_check = %lu\n", __func__, cmd);
+	if (cmd == FAKE_SHUT_DOWN_CMD_OFF) {
+		next = ktime_set(0, 0);
+		alarm_cancel(&info->monitor_alarm);
+		alarm_start_range(&info->monitor_alarm, next, next);
+	}
+
+	return 0;
+}
+#endif
+
 static __devinit int samsung_battery_probe(struct platform_device *pdev)
 {
 	struct battery_info *info;
@@ -2284,6 +2352,10 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	info->led_state = BATT_LED_DISCHARGING;
 	info->monitor_count = 0;
 	info->slate_mode = 0;
+#ifdef CONFIG_FAST_BOOT
+	info->dup_power_off = false;
+	info->suspend_check = false;
+#endif
 
 	/* LPM charging state */
 	info->lpm_state = lpcharge;
@@ -2305,6 +2377,11 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	/* Init wq for battery */
 	INIT_WORK(&info->error_work, battery_error_work);
 	INIT_WORK(&info->monitor_work, battery_monitor_work);
+
+#ifdef CONFIG_FAST_BOOT
+	info->fsd_notifier_block.notifier_call = fsd_notifier_call;
+	register_fake_shut_down_notifier(&info->fsd_notifier_block);
+#endif
 
 	/* Init Power supply class */
 	info->psy_bat.name = "battery";
@@ -2454,6 +2531,10 @@ static int __devexit samsung_battery_remove(struct platform_device *pdev)
 	if (info->pdata->ctia_spec == true)
 		alarm_cancel(&info->event_alarm);
 
+#ifdef CONFIG_FAST_BOOT
+	unregister_fake_shut_down_notifier(&info->fsd_notifier_block);
+#endif
+
 	cancel_work_sync(&info->error_work);
 	cancel_work_sync(&info->monitor_work);
 
@@ -2512,12 +2593,14 @@ static void samsung_battery_complete(struct device *dev)
 	if (((info->cable_type == POWER_SUPPLY_TYPE_MAINS)
 		|| (info->cable_type == POWER_SUPPLY_TYPE_USB)
 		|| (info->cable_type == POWER_SUPPLY_TYPE_USB_CDP))
-		&& (fake_shut_down)) {
+		&& (fake_shut_down) && (!info->dup_power_off)) {
 		pr_info("%s: Resetting the device in fake shutdown mode"\
 			"(TA/USB inserted !!!)\n", __func__);
-
+		info->dup_power_off = true;
 		kernel_power_off();
 	}
+
+	info->suspend_check = false;
 #endif
 }
 
@@ -2529,6 +2612,11 @@ static int samsung_battery_suspend(struct device *dev)
 	info->is_suspended = true;
 
 	cancel_work_sync(&info->monitor_work);
+
+#ifdef CONFIG_FAST_BOOT
+	if (fake_shut_down)
+		info->suspend_check = true;
+#endif
 
 	return 0;
 }

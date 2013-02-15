@@ -161,7 +161,7 @@ static void s5p_wait_for_cp_resume(struct platform_device *pdev,
 		dev_info(&pdev->dev, "%s: retry_cnt = %d, portsc = 0x%x\n",
 				__func__, retry_cnt, val32);
 
-#if defined(CONFIG_UMTS_MODEM_XMM6262)
+#if defined(CONFIG_UMTS_MODEM_XMM6262) || defined(CONFIG_UMTS_MODEM_XMM6260)
 	if (pdata->get_cp_active_state && !pdata->get_cp_active_state()) {
 		s5p_ehci_port_control(pdev, CP_PORT, 0);
 		pr_err("mif: force port%d off by cp reset\n", CP_PORT);
@@ -461,6 +461,10 @@ static ssize_t store_ehci_power(struct device *dev,
 
 	if (!power_on && s5p_ehci->power_on) {
 		printk(KERN_DEBUG "%s: EHCI turns off\n", __func__);
+#if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB)
+		if (hcd->self.root_hub)
+			pm_runtime_forbid(&hcd->self.root_hub->dev);
+#endif
 		pm_runtime_forbid(dev);
 		s5p_ehci->power_on = 0;
 		usb_remove_hcd(hcd);

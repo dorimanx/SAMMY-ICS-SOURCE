@@ -44,31 +44,6 @@ static void sec_keyboard_remapkey(struct work_struct *work)
 	data->remap_key = 0;
 }
 
-/* power supply name for set state */
-#define PSY_NAME	"battery"
-static void acc_dock_psy(struct sec_keyboard_drvdata *data)
-{
-	struct power_supply *psy = power_supply_get_by_name(PSY_NAME);
-	union power_supply_propval value;
-
-/* only support p4note(high current charging) */
-#ifndef CONFIG_MACH_P4NOTE
-	return;
-#endif
-
-	if (!psy || !psy->set_property) {
-		pr_err("%s: fail to get %s psy\n", __func__, PSY_NAME);
-		return;
-	}
-	value.intval = 0;
-	value.intval = (data->cable_type << 16) + (data->cable_sub_type << 8) +
-			(data->cable_pwr_type << 0);
-	pr_info("[BATT]keyboard cx(%d), sub(%d), pwr(%d) val_int(%d)\n",
-		data->cable_type, data->cable_sub_type, data->cable_pwr_type,
-		value.intval);
-	psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
-}
-
 static void sec_keyboard_ack(struct work_struct *work)
 {
 	unsigned int ackcode = 0;
@@ -80,35 +55,13 @@ static void sec_keyboard_ack(struct work_struct *work)
 		ackcode = data->ack_code;
 		sec_keyboard_tx(data, ackcode);
 	}
+
+	if (ackcode == 0x68)
+		data->univ_kbd_dock = true;
+
 	printk(KERN_DEBUG "[Keyboard] Ack code to KBD 0x%x\n", ackcode);
 
-	switch (data->ack_code) {
-	case 0x68: /*dock is con*/
-		data->noti_univ_kbd_dock(true);
-		data->cable_type = POWER_SUPPLY_TYPE_DOCK;
-		data->cable_sub_type = ONLINE_SUB_TYPE_KBD;
-		acc_dock_psy(data);
-		break;
-	case 0x69: /*usb charging*/
-		data->cable_pwr_type = ONLINE_POWER_TYPE_USB;
-		acc_dock_psy(data);
-		break;
-	case 0x6a: /*what is this. same as usb charging*/
-		data->noti_univ_kbd_dock(false);
-		data->cable_pwr_type = ONLINE_POWER_TYPE_USB;
-		acc_dock_psy(data);
-		break;
-	case 0x6b: /*TA connection*/
-		data->cable_pwr_type = ONLINE_POWER_TYPE_TA;
-		acc_dock_psy(data);
-		break;
-	case 0x6c: /* current is not support*/
-		data->cable_pwr_type = ONLINE_POWER_TYPE_BATTERY;
-		acc_dock_psy(data);
-		break;
-	}
-
-	data->ack_code = 0;
+	data->noti_univ_kbd_dock(data->ack_code);
 }
 
 static void release_all_keys(struct sec_keyboard_drvdata *data)
@@ -239,11 +192,15 @@ static int check_keyboard_dock(struct sec_keyboard_callbacks *cb, bool val)
 				return 0;
 			}
 		}
+		/* To block acc_power enable in LPM mode */
+		if ((data->tx_ready != true) && (val == true))
+			return 0 ;
 	}
 
-	if (!val)
+	if (!val) {
 		data->dockconnected = false;
-	else {
+		data->univ_kbd_dock = false;
+	} else {
 		cancel_delayed_work_sync(&data->power_dwork);
 		/* wakeup by keyboard dock */
 		if (data->pre_connected) {
@@ -380,7 +337,8 @@ static void keyboard_early_suspend(struct early_suspend *early_sus)
 		msleep(20);
 		*/
 		release_all_keys(data);
-		sec_keyboard_tx(data, 0x10);	/* the idle mode */
+		if (data->univ_kbd_dock == false)
+			sec_keyboard_tx(data, 0x10);	/* the idle mode */
 	}
 }
 
@@ -426,6 +384,7 @@ static int __devinit sec_keyboard_probe(struct platform_device *pdev)
 	ddata->led_on = false;
 	ddata->dockconnected = false;
 	ddata->pre_connected = false;
+	ddata->univ_kbd_dock = false;
 	ddata->remap_key = 0;
 	ddata->kl = UNKOWN_KEYLAYOUT;
 	ddata->callbacks.check_keyboard_dock = check_keyboard_dock;
