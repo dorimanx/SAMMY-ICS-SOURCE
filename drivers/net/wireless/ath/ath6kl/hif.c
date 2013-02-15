@@ -205,10 +205,6 @@ static int ath6kl_hif_proc_dbg_intr(struct ath6kl_device *dev)
 {
 	u32 dummy;
 	int ret;
-#if 0 // by bbelief
-	struct ath6kl_vif *vif;
-	vif = ath6kl_vif_first(dev->ar);
-#endif
 
 	ath6kl_warn("firmware crashed\n");
 
@@ -227,10 +223,6 @@ static int ath6kl_hif_proc_dbg_intr(struct ath6kl_device *dev)
 					DUMP_MASK_DBGLOG);
 	ath6kl_read_fwlogs(dev->ar);
 	ath6kl_recovery_err_notify(dev->ar, ATH6KL_FW_ASSERT);
-
-#if 0 // by bbelief
-	cfg80211_priv_event(vif->ndev, "HANG", GFP_ATOMIC);
-#endif
 
 	return ret;
 }
@@ -492,10 +484,6 @@ static int proc_pending_irqs(struct ath6kl_device *dev, bool *done)
 	u8 host_int_status = 0;
 	u32 lk_ahd = 0;
 	u8 htc_mbox = 1 << HTC_MAILBOX;
-#if 0 // by bbelief
-	struct ath6kl_vif *vif;
-	vif = ath6kl_vif_first(dev->ar);
-#endif
 
 	ath6kl_dbg(ATH6KL_DBG_IRQ, "proc_pending_irqs: (dev: 0x%p)\n", dev);
 
@@ -553,19 +541,8 @@ static int proc_pending_irqs(struct ath6kl_device *dev, bool *done)
 			    htc_mbox) {
 				rg = &dev->irq_proc_reg;
 				lk_ahd = le32_to_cpu(rg->rx_lkahd[HTC_MAILBOX]);
-#if 1 // by bbelief
 				if (!lk_ahd)
 					ath6kl_err("lookAhead is zero!\n");
-#else
-				if (!lk_ahd) {
-					ath6kl_err("lookAhead is zero!\n");
-					cfg80211_priv_event(vif->ndev,
-					"HANG", GFP_ATOMIC);
-					ath6kl_hif_rx_control(dev, false);
-					ssleep(3);
-					status = -ENOMEM;
-				}
-#endif
 			}
 		}
 	}
@@ -590,18 +567,8 @@ static int proc_pending_irqs(struct ath6kl_device *dev, bool *done)
 		 */
 		status = ath6kl_htc_rxmsg_pending_handler(dev->htc_cnxt,
 							  lk_ahd, &fetched);
-
-#if 1 // by bbelief
 		if (status)
 			goto out;
-#else
-		if (status && status != -ECANCELED) {
-			cfg80211_priv_event(vif->ndev, "HANG", GFP_ATOMIC);
-			ath6kl_hif_rx_control(dev, false);
-			ssleep(3);
-			goto out;
-		}
-#endif
 
 		if (!fetched)
 			/*

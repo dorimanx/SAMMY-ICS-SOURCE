@@ -708,7 +708,6 @@ static int ath6kl_wmi_ready_event_rx(struct wmi *wmi, u8 *datap, int len)
  * WMI_SET_LRSSI_SCAN_PARAMS. Subtract 96 from RSSI to get the signal level
  * in dBm.
  */
- #if 0 // by bbelief
 int ath6kl_wmi_set_roam_lrssi_cmd(struct wmi *wmi, u8 lrssi)
 {
 	struct sk_buff *skb;
@@ -732,71 +731,6 @@ int ath6kl_wmi_set_roam_lrssi_cmd(struct wmi *wmi, u8 lrssi)
 
 	return 0;
 }
-#else
-int ath6kl_wmi_set_roam_lrssi_cmd(struct wmi *wmi, u8 lrssi)
-{
-	struct sk_buff *skb;
-	struct roam_ctrl_cmd *cmd;
-
-	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
-	if (!skb)
-		return -ENOMEM;
-
-	cmd = (struct roam_ctrl_cmd *) skb->data;
-
-	if (wmi->parent_dev->psminfo == 0)
-		cmd->info.params.lrssi_scan_period = 0xFFFF;
-	else
-		cmd->info.params.lrssi_scan_period = cpu_to_le16(DEF_LRSSI_SCAN_PERIOD);
-	cmd->info.params.lrssi_scan_threshold = a_cpu_to_sle16(lrssi +
-						       DEF_SCAN_FOR_ROAM_INTVL);
-	cmd->info.params.lrssi_roam_threshold = a_cpu_to_sle16(lrssi);
-	cmd->info.params.roam_rssi_floor = DEF_LRSSI_ROAM_FLOOR;
-	cmd->roam_ctrl = WMI_SET_LRSSI_SCAN_PARAMS;
-
-	ath6kl_dbg(ATH6KL_DBG_WMI, "lrssi_scan_period %d, lrssi_scan_threshold = %d, "
-					"lrssi_roam_threshold = %d, roam_rssi_floor = %d\n",
-					cmd->info.params.lrssi_scan_period, cmd->info.params.lrssi_scan_threshold,
-					cmd->info.params.lrssi_roam_threshold, cmd->info.params.roam_rssi_floor);
-
-	ath6kl_wmi_cmd_send(wmi, 0, skb, WMI_SET_ROAM_CTRL_CMDID,
-			    NO_SYNC_WMIFLAG);
-
-	return 0;
-}
-
-int ath6kl_wmi_set_roam_lrssi_config_cmd(struct wmi *wmi,
-						struct low_rssi_scan_params *params)
-{
-	struct sk_buff *skb;
-	struct roam_ctrl_cmd *cmd;
-
-	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
-	if (!skb)
-		return -ENOMEM;
-
-	cmd = (struct roam_ctrl_cmd *) skb->data;
-	ath6kl_dbg(ATH6KL_DBG_WMI, "lrssi_scan_period %d, lrssi_scan_threshold = %d, "
-					"lrssi_roam_threshold = %d, roam_rssi_floor = %d\n",
-					params->lrssi_scan_period, params->lrssi_scan_threshold,
-					params->lrssi_roam_threshold, params->roam_rssi_floor);
-
-	if (params->lrssi_scan_period == 0)
-		cmd->info.params.lrssi_scan_period = 0xFFFF;
-	else
-		cmd->info.params.lrssi_scan_period = params->lrssi_scan_period;
-	cmd->info.params.lrssi_scan_threshold = params->lrssi_scan_threshold;
-	cmd->info.params.lrssi_roam_threshold = params->lrssi_roam_threshold;
-	cmd->info.params.roam_rssi_floor = params->roam_rssi_floor;
-	cmd->roam_ctrl = WMI_SET_LRSSI_SCAN_PARAMS;
-
-	ath6kl_wmi_cmd_send(wmi, 0, skb, WMI_SET_ROAM_CTRL_CMDID,
-			    NO_SYNC_WMIFLAG);
-
-	return 0;
-}
-
-#endif
 
 int ath6kl_wmi_force_roam_cmd(struct wmi *wmi, const u8 *bssid)
 {
@@ -988,8 +922,12 @@ static void ath6kl_wmi_regdomain_event(struct wmi *wmi, u8 *datap, int len)
 
 		regpair = ath6kl_get_regpair((u16) reg_code);
 		country = ath6kl_regd_find_country_by_rd((u16) reg_code);
-		ath6kl_dbg(ATH6KL_DBG_WMI, "Regpair used: 0x%0x\n",
-				regpair->regDmnEnum);
+		if (regpair)
+			ath6kl_dbg(ATH6KL_DBG_WMI, "Regpair used: 0x%0x\n",
+				   regpair->regDmnEnum);
+		else
+			ath6kl_warn("Regpair not found reg_code 0x%0x\n",
+				    reg_code);
 	}
 
 	if (country) {
@@ -1221,6 +1159,9 @@ static int ath6kl_wmi_bitrate_reply_rx(struct wmi *wmi, u8 *datap, int len)
 		rate = RATE_AUTO;
 	} else {
 		index = reply->rate_index & 0x7f;
+		if (WARN_ON_ONCE(index > (RATE_MCS_7_40 + 1)))
+			return -EINVAL;
+
 		sgi = (reply->rate_index & 0x80) ? 1 : 0;
 		rate = wmi_rate_tbl[index][sgi];
 	}
@@ -2201,31 +2142,6 @@ int ath6kl_wmi_listeninterval_cmd(struct wmi *wmi, u8 if_idx,
 	return ret;
 }
 
-#if 1 // by bbelief
-int ath6kl_wmi_mcastrate_cmd(struct wmi *wmi, u8 if_idx,
-				 u16 bitrate)
-{
-	struct sk_buff *skb;
-	struct wmi_set_mcastrate_cmd *cmd;
-	int ret;
-
-	printk("\tmcastrate = %d\n", bitrate);
-
-	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
-	if (!skb)
-		return -ENOMEM;
-
-	cmd = (struct wmi_set_mcastrate_cmd *) skb->data;
-	cmd->bitrate = bitrate;
-
-	ret = ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SET_MCASTRATE_CMDID,
-				  NO_SYNC_WMIFLAG);
-
-	return ret;
-}
-
-#endif
-
 int ath6kl_wmi_bmisstime_cmd(struct wmi *wmi, u8 if_idx,
 			     u16 bmiss_time, u16 num_beacons)
 {
@@ -2257,14 +2173,6 @@ int ath6kl_wmi_powermode_cmd(struct wmi *wmi, u8 if_idx, u8 pwr_mode)
 		return -ENOMEM;
 
 	cmd = (struct wmi_power_mode_cmd *) skb->data;
-#if 1 // by bbelief
-	if (wmi->parent_dev->psminfo == 0)
-		pwr_mode = MAX_PERF_POWER;
-
-	ath6kl_dbg(ATH6KL_DBG_WMI, "%s() pwr_mode = %d\n",
-					__func__, pwr_mode);
-
-#endif
 	cmd->pwr_mode = pwr_mode;
 	wmi->pwr_mode = pwr_mode;
 
@@ -3294,63 +3202,6 @@ int ath6kl_wmi_add_del_mcast_filter_cmd(struct wmi *wmi, u8 if_idx,
 	return ret;
 }
 
-#if 1 // by bbelief
-int ath6kl_wmi_set_ht_cap_cmd(struct wmi *wmi, u8 if_idx,
-		struct wmi_set_htcap_cmd *params)
-{
-	struct sk_buff *skb;
-    struct wmi_set_htcap_cmd *cmd;
-	struct ath6kl *ar = wmi->parent_dev;
-	struct ieee80211_supported_band *sband;
-	int ret;
-
-	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
-	if (!skb)
-		return -ENOMEM;
-
-	cmd = (struct wmi_set_htcap_cmd *) skb->data;
-	ath6kl_dbg(ATH6KL_DBG_WMI, "bands %d, ht_supported = %d, "
-					"chan_width_40m_supported %d, short_gi_20mhz = %d, "
-					"short_gi_40mhz = %d, intolerance_40mhz = %d\n",
-					params->band, params->ht_enable,
-					params->ht40_supported, params->ht20_sgi,
-					params->ht40_sgi, params->intolerant_40mhz);
-	memcpy(cmd, params, sizeof(*cmd));
-
-	sband = ar->wiphy->bands[params->band];
-	sband->ht_cap.ht_supported = params->ht_enable;
-	if (params->ht40_supported)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_SUP_WIDTH_20_40;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_SUP_WIDTH_20_40;
-
-	if (params->ht20_sgi)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_SGI_20;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_SGI_20;
-
-	if (params->ht40_sgi)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_SGI_40;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_SGI_40;
-
-	if (params->intolerant_40mhz)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_40MHZ_INTOLERANT;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_40MHZ_INTOLERANT;
-
-	if (params->max_ampdu_len_exp)
-		sband->ht_cap.cap |= IEEE80211_HT_CAP_MAX_AMSDU;
-	else
-		sband->ht_cap.cap &= ~IEEE80211_HT_CAP_MAX_AMSDU;
-
-	ret = ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SET_HT_CAP_CMDID,
-				  NO_SYNC_WMIFLAG);
-	return ret;
-}
-
-#endif
-
 int ath6kl_wmi_sta_bmiss_enhance_cmd(struct wmi *wmi, u8 if_idx, bool enhance)
 {
 	struct sk_buff *skb;
@@ -3387,7 +3238,6 @@ int ath6kl_wmi_set_regdomain_cmd(struct wmi *wmi, const char *alpha2)
 				   NO_SYNC_WMIFLAG);
 }
 
-#if 0 // by bbelief
 s32 ath6kl_wmi_get_rate(s8 rate_index)
 {
 	if (rate_index == RATE_AUTO)
@@ -3395,30 +3245,6 @@ s32 ath6kl_wmi_get_rate(s8 rate_index)
 
 	return wmi_rate_tbl[(u32) rate_index][0];
 }
-#else
-
-s32 ath6kl_wmi_get_rate(s8 rate_index)
-{
-	u32 sgi;
-
-	if (rate_index == RATE_AUTO)
-		return 0;
-
-	/* SGI is stored as the MSG of the rate_index */
-	if (rate_index & 0x80) {
-		rate_index &= 0x7f;
-		sgi = 1;
-	} else {
-		sgi = 0;
-	}
-
-	if (rate_index > RATE_MCS_7_40)
-		rate_index = RATE_MCS_7_40;
-
-	return wmi_rate_tbl[(u32) rate_index][sgi];
-}
-
-#endif
 
 static int ath6kl_wmi_get_pmkid_list_event_rx(struct wmi *wmi, u8 *datap,
 					      u32 len)
@@ -4020,9 +3846,6 @@ int ath6kl_wmi_control_rx(struct wmi *wmi, struct sk_buff *skb)
 {
 	struct wmi_cmd_hdr *cmd;
 	struct ath6kl_vif *vif;
-#if 1 // by bbelief
-	__le32 regcode;
-#endif
 	u32 len;
 	u16 id;
 	u8 if_idx;
@@ -4103,14 +3926,6 @@ int ath6kl_wmi_control_rx(struct wmi *wmi, struct sk_buff *skb)
 		break;
 	case WMI_REGDOMAIN_EVENTID:
 		ath6kl_dbg(ATH6KL_DBG_WMI, "WMI_REGDOMAIN_EVENTID\n");
-#if 1 // by bbelief
-		memcpy(&regcode, datap, 4);
-		ath6kl_info("%s: 0x%x WWR:%d\n",
-			    le32_to_cpu(regcode) & BIT(31) ?
-			    "Country Code" : "Reg Domain",
-			    le32_to_cpu(regcode) & 0xfff,
-			    !!(le32_to_cpu(regcode) & BIT(30)));
-#endif
 		ath6kl_wmi_regdomain_event(wmi, datap, len);
 		break;
 	case WMI_PSTREAM_TIMEOUT_EVENTID:

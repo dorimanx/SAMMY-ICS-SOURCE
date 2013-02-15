@@ -353,11 +353,7 @@ int ath6kl_read_fwlogs(struct ath6kl *ar)
 
 		address = TARG_VTOP(ar->target_type,
 				    le32_to_cpu(debug_buf.next));
-#if 1 // by bbelief
 		ath6kl_diag_read(ar, address, &debug_buf, sizeof(debug_buf));
-#else
-		ret = ath6kl_diag_read(ar, address, &debug_buf, sizeof(debug_buf));
-#endif
 		if (ret)
 			goto out;
 
@@ -1035,6 +1031,20 @@ void ath6kl_disconnect_event(struct ath6kl_vif *vif, u8 reason, u8 *bssid,
 			ar->last_ch = le16_to_cpu(vif->profile.ch);
 		}
 
+		if (prot_reason_status == WMI_AP_REASON_MAX_STA) {
+			/* send max client reached notification to user space */
+			cfg80211_conn_failed(vif->ndev, bssid,
+					     NL80211_CONN_FAIL_MAX_CLIENTS,
+					     GFP_KERNEL);
+		}
+
+		if (prot_reason_status == WMI_AP_REASON_ACL) {
+			/* send blocked client notification to user space */
+			cfg80211_conn_failed(vif->ndev, bssid,
+					     NL80211_CONN_FAIL_BLOCKED_CLIENT,
+					     GFP_KERNEL);
+		}
+
 		if (!ath6kl_remove_sta(ar, bssid, prot_reason_status))
 			return;
 
@@ -1167,7 +1177,7 @@ static struct net_device_stats *ath6kl_get_stats(struct net_device *dev)
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39))
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
+#if 1 /*(LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))*/
 static int ath6kl_set_features(struct net_device *dev, netdev_features_t features)
 #else
 static int ath6kl_set_features(struct net_device *dev, u32 features)
@@ -1330,7 +1340,7 @@ out:
 	list_splice_tail(&mc_filter_new, &vif->mc_filter);
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
+#if 1 /*(LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))*/
 static int ath6kl_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	return 0;
@@ -1346,7 +1356,7 @@ static struct net_device_ops ath6kl_netdev_ops = {
 	.ndo_set_features       = ath6kl_set_features,
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39)) */
 	.ndo_set_rx_mode	= ath6kl_set_multicast_list,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))
+#if 1 /*(LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0))*/
 	.ndo_do_ioctl           = ath6kl_ioctl,
 #endif
 };

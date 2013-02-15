@@ -39,7 +39,6 @@ static void ath6kl_recovery_work(struct work_struct *work)
 			  msecs_to_jiffies(ar->fw_recovery.hb_poll));
 }
 
-
 void ath6kl_recovery_err_notify(struct ath6kl *ar, enum ath6kl_fw_err reason)
 {
 	ath6kl_dbg(ATH6KL_DBG_RECOVERY, "Fw error detected, reason:%d\n",
@@ -62,7 +61,7 @@ static void ath6kl_recovery_hb_timer(unsigned long data)
 	struct ath6kl *ar = (struct ath6kl *) data;
 	int err;
 
-	if (!ar->fw_recovery.enable)
+	if (!ar->fw_recovery.enable || !test_bit(WMI_READY, &ar->flag))
 		return;
 
 	if (ar->fw_recovery.hb_pending)
