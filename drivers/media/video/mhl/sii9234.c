@@ -54,7 +54,8 @@
 /* #define __CONFIG_MHL_SWING_LEVEL__ */
 #define	__CONFIG_SS_FACTORY__
 #define	__CONFIG_MHL_DEBUG__
-#if defined(CONFIG_MACH_T0) || defined(CONFIG_MACH_M3)
+#if defined(CONFIG_MACH_T0) || defined(CONFIG_MACH_M3) \
+	|| defined(CONFIG_MACH_M0_DUOSCTC)
 #	define __CONFIG_MHL_VER_1_2__
 #else
 #	define __CONFIG_MHL_VER_1_1__
@@ -3677,6 +3678,7 @@ static ssize_t sysfs_check_mhl_command(struct class *class,
 				       struct class_attribute *attr, char *buf)
 {
 	int size;
+	int ret;
 	u8 sii_id = 0;
 	struct sii9234_data *sii9234 = dev_get_drvdata(sii9244_mhldev);
 
@@ -3686,7 +3688,11 @@ static ssize_t sysfs_check_mhl_command(struct class *class,
 	if (sii9234->pdata->hw_reset)
 		sii9234->pdata->hw_reset();
 
-	mhl_tx_read_reg(sii9234, MHL_TX_IDH_REG, &sii_id);
+	ret = mhl_tx_read_reg(sii9234, MHL_TX_IDH_REG, &sii_id);
+	if (unlikely(ret < 0))
+		pr_err("[ERROR] %s(): Failed to read register"
+			" MHL_TX_IDH_REG!\n", __func__);
+
 	pr_info("sii9234 : sel_show sii_id: %X\n", sii_id);
 
 	if (sii9234->pdata->hw_onoff)

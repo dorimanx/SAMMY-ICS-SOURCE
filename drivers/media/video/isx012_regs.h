@@ -4760,7 +4760,6 @@ static const isx012_regset_t isx012_720_Preview[] =
 {
 {0x0090,0x02D0,0x02},	 //HSIZE_MONI : 720
 {0x0096,0x01E0,0x02},	 //VSIZE_MONI : 480
-
 };
 
 static const isx012_regset_t isx012_640_Preview[] =
@@ -4768,6 +4767,15 @@ static const isx012_regset_t isx012_640_Preview[] =
 {0x0090,0x0280,0x02},	 //HSIZE_MONI : 640
 {0x0096,0x01E0,0x02},	 //VSIZE_MONI : 480
 };
+
+#if defined(CONFIG_MACH_P4NOTELTE_KOR_SKT) \
+	|| defined(CONFIG_MACH_P4NOTELTE_KOR_KT) \
+	|| defined(CONFIG_MACH_P4NOTELTE_KOR_LGT) /*For 4G VT call in Domestic*/
+static const isx012_regset_t isx012_480_Preview[] = {
+{0x0090, 0x01E0, 0x02},		/* HSIZE_MONI : 480 */
+{0x0096, 0x0280, 0x02},		/* VSIZE_MONI : 640 */
+};
+#endif
 
 static const isx012_regset_t isx012_320_Preview[] =
 {

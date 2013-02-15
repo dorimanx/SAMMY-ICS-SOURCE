@@ -193,6 +193,11 @@ enum isx012_preview_frame_size {
 	PREVIEW_SZ_320x240,	/* 320x240 */
 	PREVIEW_SZ_CIF,		/* 352x288 */
 	PREVIEW_SZ_528x432,	/* 528x432 */
+#if defined(CONFIG_MACH_P4NOTELTE_KOR_SKT) \
+	|| defined(CONFIG_MACH_P4NOTELTE_KOR_KT) \
+	|| defined(CONFIG_MACH_P4NOTELTE_KOR_LGT) /*For 4G VT call in Domestic*/
+	PREVIEW_SZ_VERTICAL_VGA,	/* 480x640 */
+#endif
 	PREVIEW_SZ_VGA,		/* 640x480 */
 	PREVIEW_SZ_D1,		/* 720x480 */
 	PREVIEW_SZ_880x720,	/* 880x720 */

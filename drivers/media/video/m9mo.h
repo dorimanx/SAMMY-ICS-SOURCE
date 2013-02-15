@@ -58,6 +58,19 @@
 #endif
 #define FRM_RATIO(x)    ((x)->width*10/(x)->height)
 
+#if 0
+#define M9MO_FW_VER_LEN		22
+#define M9MO_FW_VER_FILE_CUR	0x16FF00
+#define M9MO_FW_VER_NUM		0x000018
+#else
+#define M9MO_FW_VER_LEN	20
+#define M9MO_FW_VER_TOKEN 7
+#define M9MO_SENSOR_TYPE_LEN 25
+#define M9MO_SEN_FW_VER_LEN	30
+#define M9MO_FW_VER_FILE_CUR	0x1FF080
+#define M9MO_FW_VER_NUM		0x1FF080
+#endif
+
 u8 buf_port_seting0[] = {
 		  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -271,9 +284,11 @@ struct m9mo_state {
 	struct m9mo_exif exif;
 
 	int isp_fw_ver;
-	u8 sensor_ver[10];
-	u8 phone_ver[10];
-	u8 sensor_type[25];
+	u8 sensor_ver[M9MO_FW_VER_TOKEN + 1];
+	u8 phone_ver[M9MO_FW_VER_TOKEN + 1];
+	u8 sensor_type[M9MO_SENSOR_TYPE_LEN + 1];
+
+	int fw_checksum_val;
 
 #ifdef CONFIG_CAM_DEBUG
 	u8 dbg_level;
@@ -354,6 +369,10 @@ struct m9mo_state {
 	int saturation;
 
 	int isp_mode;
+
+	int af_running;
+
+	int set_AF_LED_On;
 };
 
 /* Category */
