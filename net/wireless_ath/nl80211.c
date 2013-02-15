@@ -209,7 +209,6 @@ static const struct nla_policy nl80211_policy[NL80211_ATTR_MAX+1] = {
 	[NL80211_ATTR_BG_SCAN_PERIOD] = { .type = NLA_U16 },
 	[NL80211_ATTR_BTCOEX_DATA] = { .type = NLA_BINARY,
 				      .len = IEEE80211_MAX_DATA_LEN },
-	[NL80211_ATTR_PRIV_EVENT] = { .type = NLA_NUL_STRING, .len = 128 },
 	[NL80211_ATTR_STA_CAP_REQ] = { .type = NLA_U8 },
 	[NL80211_ATTR_ACS] = { .type = NLA_U8 },
 	[NL80211_ATTR_MAC_ACL] = { .type = NLA_U8 },
@@ -1851,10 +1850,8 @@ static int nl80211_get_key(struct sk_buff *skb, struct genl_info *info)
 
 	hdr = nl80211hdr_put(msg, info->snd_pid, info->snd_seq, 0,
 			     NL80211_CMD_NEW_KEY);
-	if (IS_ERR(hdr)) {
-		nlmsg_free(msg);
+	if (IS_ERR(hdr))
 		return PTR_ERR(hdr);
-	}
 
 	cookie.msg = msg;
 	cookie.idx = key_idx;
@@ -1865,10 +1862,8 @@ static int nl80211_get_key(struct sk_buff *skb, struct genl_info *info)
 		NLA_PUT(msg, NL80211_ATTR_MAC, ETH_ALEN, mac_addr);
 
 	if (pairwise && mac_addr &&
-		!(rdev->wiphy.flags & WIPHY_FLAG_IBSS_RSN)) {
-		nlmsg_free(msg);
+	    !(rdev->wiphy.flags & WIPHY_FLAG_IBSS_RSN))
 		return -ENOENT;
-	}
 
 	err = rdev->ops->get_key(&rdev->wiphy, dev, key_idx, pairwise,
 				 mac_addr, &cookie, get_key_callback);
@@ -6036,10 +6031,14 @@ static int nl80211_set_wowlan(struct sk_buff *skb, struct genl_info *info)
 		}
 		cfg80211_rdev_free_wowlan(rdev);
 		rdev->wowlan = ntrig;
+		if (rdev->ops->set_wow_mode)
+			rdev->ops->set_wow_mode(&rdev->wiphy, ntrig);
 	} else {
  no_triggers:
 		cfg80211_rdev_free_wowlan(rdev);
 		rdev->wowlan = NULL;
+		if (rdev->ops->clr_wow_mode)
+			rdev->ops->clr_wow_mode(&rdev->wiphy);
 	}
 
 	return 0;
@@ -6206,20 +6205,6 @@ static int nl80211_btcoex_notify(struct sk_buff *skb,
 	len = nla_len(info->attrs[NL80211_ATTR_BTCOEX_DATA]);
 
 	return dev->ops->notify_btcoex(&dev->wiphy, buf, len);
-}
-
-static int nl80211_p2p_flush_notify(struct sk_buff *skb,
-					   struct genl_info *info)
-{
-	struct cfg80211_registered_device *dev = info->user_ptr[0];
-
-	if (!dev)
-		return -ENODEV;
-
-	if (!dev->ops->notify_p2p_flush)
-		return -EOPNOTSUPP;
-
-	return dev->ops->notify_p2p_flush(&dev->wiphy);
 }
 
 #define NL80211_FLAG_NEED_WIPHY		0x01
@@ -6575,7 +6560,11 @@ static struct genl_ops nl80211_ops[] = {
 		.doit = nl80211_testmode_do,
 		.dumpit = nl80211_testmode_dump,
 		.policy = nl80211_policy,
+
+#ifdef CONFIG_MACH_PX
+#else
 		.flags = GENL_ADMIN_PERM,
+#endif
 		.internal_flags = NL80211_FLAG_NEED_WIPHY |
 				  NL80211_FLAG_NEED_RTNL,
 	},
@@ -6806,13 +6795,6 @@ static struct genl_ops nl80211_ops[] = {
 		.doit = nl80211_btcoex_notify,
 		.policy = nl80211_policy,
 		/* can be retrieved by unprivileged users */
-		.internal_flags = NL80211_FLAG_NEED_NETDEV |
-				  NL80211_FLAG_NEED_RTNL,
-	},
-	{
-		.cmd = NL80211_CMD_P2P_FLUSH,
-		.doit = nl80211_p2p_flush_notify,
-		.policy = nl80211_policy,
 		.internal_flags = NL80211_FLAG_NEED_NETDEV |
 				  NL80211_FLAG_NEED_RTNL,
 	},
@@ -7608,6 +7590,40 @@ void nl80211_send_sta_del_event(struct cfg80211_registered_device *rdev,
 	nlmsg_free(msg);
 }
 
+void nl80211_send_conn_failed_event(struct cfg80211_registered_device *rdev,
+				    struct net_device *dev, const u8 *mac_addr,
+				    enum nl80211_connect_failed_reason reason,
+				    gfp_t gfp)
+{
+	struct sk_buff *msg;
+	void *hdr;
+
+	msg = nlmsg_new(NLMSG_GOODSIZE, gfp);
+	if (!msg)
+		return;
+
+	hdr = nl80211hdr_put(msg, 0, 0, 0, NL80211_CMD_CONN_FAILED);
+	if (!hdr) {
+		nlmsg_free(msg);
+		return;
+	}
+
+	if (nla_put_u32(msg, NL80211_ATTR_IFINDEX, dev->ifindex) ||
+	    nla_put(msg, NL80211_ATTR_MAC, ETH_ALEN, mac_addr) ||
+	    nla_put_u32(msg, NL80211_ATTR_CONN_FAILED_REASON, reason))
+		goto nla_put_failure;
+
+	genlmsg_end(msg, hdr);
+
+	genlmsg_multicast_netns(wiphy_net(&rdev->wiphy), msg, 0,
+				nl80211_mlme_mcgrp.id, gfp);
+	return;
+
+ nla_put_failure:
+	genlmsg_cancel(msg, hdr);
+	nlmsg_free(msg);
+}
+
 static bool __nl80211_unexpected_frame(struct net_device *dev, u8 cmd,
 				       const u8 *addr, gfp_t gfp)
 {
@@ -8062,46 +8078,6 @@ void cfg80211_report_obss_beacon(struct wiphy *wiphy,
 	nlmsg_free(msg);
 }
 EXPORT_SYMBOL(cfg80211_report_obss_beacon);
-
-void cfg80211_priv_event(struct net_device *dev,
-				 const char *priv_event, gfp_t gfp)
-{
-	struct wireless_dev *wdev = dev->ieee80211_ptr;
-	struct cfg80211_registered_device *rdev = wiphy_to_dev(wdev->wiphy);
-	struct sk_buff *msg;
-	void *hdr;
-	int err;
-
-	msg = nlmsg_new(NLMSG_GOODSIZE, gfp);
-	if (!msg)
-		return;
-
-	hdr = nl80211hdr_put(msg, 0, 0, 0, NL80211_CMD_PRIV_EVENT);
-	if (!hdr) {
-		nlmsg_free(msg);
-		return;
-	}
-
-	NLA_PUT_U32(msg, NL80211_ATTR_IFINDEX, dev->ifindex);
-	NLA_PUT_STRING(msg, NL80211_ATTR_PRIV_EVENT, priv_event);
-
-	err = genlmsg_end(msg, hdr);
-	if (err < 0) {
-		nlmsg_free(msg);
-		return;
-	}
-
-	genlmsg_multicast_netns(wiphy_net(&rdev->wiphy), msg, 0,
-				nl80211_mlme_mcgrp.id, gfp);
-	return;
-
- nla_put_failure:
-	genlmsg_cancel(msg, hdr);
-	nlmsg_free(msg);
-
-}
-EXPORT_SYMBOL(cfg80211_priv_event);
-
 
 static int nl80211_netlink_notify(struct notifier_block * nb,
 				  unsigned long state,
