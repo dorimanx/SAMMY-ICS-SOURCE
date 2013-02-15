@@ -111,8 +111,6 @@ int wacom_i2c_flash_cmd(struct wacom_i2c *wac_i2c)
 		msleep(270);
 	}
 
-	wac_i2c->boot_mode = true;
-
 	return 0;
 }
 
@@ -174,6 +172,9 @@ int wacom_i2c_flash_enter(struct wacom_i2c *wac_i2c)
 {
 	if (wacom_i2c_flash_query(wac_i2c, FLASH_QUERY, FLASH_ACK) == -1)
 		return ERR_NOT_FLASH;
+
+	wac_i2c->boot_mode = true;
+
 	return 0;
 }
 
@@ -547,7 +548,15 @@ int wacom_i2c_flash(struct wacom_i2c *wac_i2c)
 #endif
 
 #ifdef WACOM_HAVE_FWE_PIN
-	wac_i2c->wac_pdata->compulsory_flash_mode(true);
+	if (wac_i2c->have_fwe_pin) {
+		wac_i2c->wac_pdata->compulsory_flash_mode(true);
+#ifdef CONFIG_MACH_T0
+		/*Reset*/
+		wac_i2c->wac_pdata->reset_platform_hw();
+		msleep(200);
+#endif
+		printk(KERN_DEBUG"[E-PEN] Set FWE\n");
+	}
 #endif
 	wake_lock(&wac_i2c->wakelock);
 
@@ -608,6 +617,7 @@ int wacom_i2c_flash(struct wacom_i2c *wac_i2c)
 		/*please redo whole process of flashing from  */
 		/*wacom_i2c_flash_erase                       */
 		do {
+			cnt++;
 			ret = wacom_i2c_flash_erase(wac_i2c, FLASH_ERASE,
 				    cmd_addr, END_BLOCK);
 			if (ret < 0) {
@@ -637,7 +647,8 @@ int wacom_i2c_flash(struct wacom_i2c *wac_i2c)
 		} while ((!valid_hex) && (cnt < 10));
 		/*2012/07/04: Wacom*/
 
-		printk(KERN_DEBUG "[E-PEN]: Firmware successfully updated\n");
+		if (cnt < 10)
+			printk(KERN_DEBUG "[E-PEN]: Firmware successfully updated\n");
 	}
 	msleep(1);
 
@@ -649,8 +660,17 @@ mcu_type_error:
 fw_update_error:
 	wake_unlock(&wac_i2c->wakelock);
 #ifdef WACOM_HAVE_FWE_PIN
-	wac_i2c->wac_pdata->compulsory_flash_mode(false);
+	if (wac_i2c->have_fwe_pin) {
+		wac_i2c->wac_pdata->compulsory_flash_mode(false);
+#ifdef CONFIG_MACH_T0
+		/*Reset*/
+		wac_i2c->wac_pdata->reset_platform_hw();
+		msleep(200);
 #endif
+		printk(KERN_DEBUG"[E-PEN] Release FWE\n");
+	}
+#endif
+
 	return ret;
 }
 
