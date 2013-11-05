@@ -289,8 +289,13 @@ static void mdm_status_changed(struct mdm_modem_drv *mdm_drv, int value)
 	if (value) {
 		mdm_peripheral_disconnect(mdm_drv);
 		mdm_peripheral_connect(mdm_drv);
-		if (mdm_drv->ap2mdm_wakeup_gpio > 0)
+		if (mdm_drv->ap2mdm_wakeup_gpio > 0) {
+			if (gpio_get_value(mdm_drv->ap2mdm_wakeup_gpio)) {
+				gpio_set_value(mdm_drv->ap2mdm_wakeup_gpio, 0);
+				mdelay(5);
+			}
 			gpio_direction_output(mdm_drv->ap2mdm_wakeup_gpio, 1);
+		}
 	}
 }
 
@@ -324,10 +329,16 @@ static void mdm_modem_shutdown(struct platform_device *pdev)
 #ifdef CONFIG_FAST_BOOT
 static void modem_complete(struct device *pdev)
 {
-	struct mdm_platform_data *pdata = pdev->platform_data;
+	struct mdm_platform_data *pdata;
+       
+	if (!pdev) {
+		pr_err("pdev is null!!\n");
+		return;
+	}
+	pdata = pdev->platform_data;
 
-	if (!pdev || !pdata) {
-		pr_err("pdev or pdata is null!!\n");
+	if (!pdata) {
+		pr_err("pdata is null!!\n");
 		return;
 	}
 

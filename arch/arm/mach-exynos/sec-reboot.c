@@ -11,12 +11,32 @@ extern bool is_cable_attached;
 #ifdef CONFIG_MACH_GC1
 extern bool is_jig_attached;
 #endif
+
+#ifdef CONFIG_MACH_GD2
+static void camera_ic_poweroff(void)
+{
+        if (system_rev < 5) {
+		gpio_direction_output(D4_COLD, GPIO_LEVEL_HIGH);
+		msleep(100);
+		gpio_direction_output(D4_COLD, GPIO_LEVEL_LOW);
+        } else {
+		gpio_direction_output(D4_COLD, GPIO_LEVEL_LOW);
+		msleep(100);
+		gpio_direction_output(D4_COLD, GPIO_LEVEL_HIGH);
+        }
+	pr_info("%s wait for 260ms", __func__);
+	mdelay(260);
+}
+#endif
+
 static void sec_power_off(void)
 {
 	int poweroff_try = 0;
 
 	local_irq_disable();
-
+#ifdef CONFIG_MACH_GD2
+	camera_ic_poweroff();
+#endif
 	pr_emerg("%s : cable state=%d\n", __func__, is_cable_attached);
 #ifdef CONFIG_MACH_GC1
 	pr_emerg("%s : jig state=%d\n", __func__, is_jig_attached);
@@ -85,7 +105,9 @@ static void sec_power_off(void)
 static void sec_reboot(char str, const char *cmd)
 {
 	local_irq_disable();
-
+#ifdef CONFIG_MACH_GD2
+	camera_ic_poweroff();
+#endif
 	pr_emerg("%s (%d, %s)\n", __func__, str, cmd ? cmd : "(null)");
 
 	writel(0x12345678, S5P_INFORM2);	/* Don't enter lpm mode */

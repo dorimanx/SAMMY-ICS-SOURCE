@@ -155,7 +155,7 @@
 #include <linux/mdnie.h>
 #endif
 
-#include <../../../drivers/video/samsung/s3cfb.h>
+#include <plat/fb-s5p.h>
 #include "u1.h"
 
 #include <mach/sec_debug.h>
@@ -395,6 +395,9 @@ static int m5mo_power_on(void)
 
 	/* VT_CORE_1.5V */
 	ret = gpio_direction_output(GPIO_VT_CAM_15V, 1);
+#ifdef CONFIG_TARGET_LOCALE_NA
+	s3c_gpio_setpull(GPIO_VT_CAM_15V, S3C_GPIO_PULL_NONE);
+#endif /* CONFIG_TARGET_LOCALE_NA */
 	CAM_CHECK_ERR_RET(ret, "output VT_CAM_1.5V");
 	udelay(20);
 
@@ -1732,6 +1735,8 @@ static struct s3c_mshci_platdata exynos4_mshc_pdata __initdata = {
 	.max_width = 8,
 	.host_caps = MMC_CAP_8_BIT_DATA | MMC_CAP_1_8V_DDR |
 			MMC_CAP_UHS_DDR50 | MMC_CAP_CMD23,
+	/* enable PON */
+	.host_caps2 = MMC_CAP2_POWEROFF_NOTIFY,
 #elif defined(CONFIG_EXYNOS4_MSHC_8BIT)
 	.max_width = 8,
 	.host_caps = MMC_CAP_8_BIT_DATA | MMC_CAP_CMD23,
@@ -2073,9 +2078,9 @@ static struct spi_board_info spi0_board_info[] __initdata = {
 		.controller_data	=	&spi0_csi[0],
 	},
 
-#elif defined(CONFIG_PHONE_IPC_SPI)
+#elif defined(CONFIG_LINK_DEVICE_SPI)
 	{
-		.modalias = "ipc_spi",
+		.modalias = "modem_if_spi",
 		.bus_num = 0,
 		.chip_select = 0,
 		.max_speed_hz = 12*1000*1000,
@@ -3943,6 +3948,10 @@ static void u1_sound_init(void)
 		return;
 	}
 	gpio_direction_output(GPIO_MIC_BIAS_EN, 1);
+#ifdef CONFIG_TARGET_LOCALE_NA
+	s3c_gpio_setpull(GPIO_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
+#endif /* CONFIG_TARGET_LOCALE_NA */
+
 	gpio_set_value(GPIO_MIC_BIAS_EN, 0);
 	gpio_free(GPIO_MIC_BIAS_EN);
 
@@ -3952,6 +3961,10 @@ static void u1_sound_init(void)
 		return;
 	}
 	gpio_direction_output(GPIO_EAR_MIC_BIAS_EN, 1);
+#ifdef CONFIG_TARGET_LOCALE_NA
+	s3c_gpio_setpull(GPIO_EAR_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
+#endif /* CONFIG_TARGET_LOCALE_NA */
+
 	gpio_set_value(GPIO_EAR_MIC_BIAS_EN, 0);
 	gpio_free(GPIO_EAR_MIC_BIAS_EN);
 
@@ -3973,6 +3986,10 @@ static void u1_sound_init(void)
 			return;
 		}
 		gpio_direction_output(GPIO_SUB_MIC_BIAS_EN, 0);
+#ifdef CONFIG_TARGET_LOCALE_NA
+		s3c_gpio_setpull(GPIO_SUB_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
+#endif /* CONFIG_TARGET_LOCALE_NA */
+
 		gpio_free(GPIO_SUB_MIC_BIAS_EN);
 	}
 #endif /* #if defined(CONFIG_MACH_Q1_BD) */
@@ -4681,6 +4698,7 @@ static struct sec_bat_adc_table_data temper_table_ADC7[] = {
 };
 #endif
 
+#define ADC_CH_VF	2
 #define ADC_CH_TEMPERATURE_PMIC	6
 #define ADC_CH_TEMPERATURE_LCD	7
 
@@ -4727,6 +4745,10 @@ static struct sec_bat_platform_data sec_bat_pdata = {
 	.adc_sub_table		= temper_table_ADC7,
 	.adc_sub_channel	= ADC_CH_TEMPERATURE_LCD,
 	.get_lpcharging_state	= sec_bat_get_lpcharging_state,
+#if defined(CONFIG_TARGET_LOCALE_NAATT) || \
+	defined(CONFIG_TARGET_LOCALE_NAATT_TEMP)
+	.adc_vf_channel = ADC_CH_VF,
+#endif
 #if defined(CONFIG_MACH_Q1_BD)
 	.initial_check		= sec_bat_initial_check,
 #else
@@ -5503,7 +5525,11 @@ static const u8 *mxt224_config[] = {
 #define MXT224E_THRESHOLD_BATT		50
 #define MXT224E_T48_THRESHOLD_BATT		28
 #define MXT224E_THRESHOLD_CHRG		40
+#if defined(CONFIG_MACH_U1_NA_SPR)
+#define MXT224E_CALCFG_BATT		0x72
+#else
 #define MXT224E_CALCFG_BATT		0x42
+#endif
 #define MXT224E_CALCFG_CHRG		0x52
 #if defined(CONFIG_TARGET_LOCALE_NA)
 #define MXT224E_ATCHFRCCALTHR_NORMAL		45
@@ -6284,6 +6310,27 @@ static struct i2c_board_info i2c_devs4[] __initdata = {
 #endif /* CONFIG_WIMAX_CMC */
 };
 #endif
+
+#if defined(CONFIG_WIMAX_CMC)
+static struct i2c_gpio_platform_data wmxeeprom_i2c_gpio_data = {
+	.sda_pin  = GPIO_CMC_SDA_18V,
+	.scl_pin  = GPIO_CMC_SCL_18V,
+	.udelay = 2,
+};
+static struct platform_device wmxeeprom_i2c_gpio_device = {
+	.name	= "i2c-gpio",
+	.id	= 18,
+	.dev	= {
+		.platform_data  = &wmxeeprom_i2c_gpio_data,
+	},
+};
+static struct i2c_board_info wmxeeprom_i2c_devices[] __initdata = {
+{
+	I2C_BOARD_INFO("wmxeeprom", 0x50),
+}
+};
+
+#endif /* CONFIG_WIMAX_CMC */
 
 #ifdef CONFIG_S3C_DEV_I2C5
 /* I2C5 */
@@ -7287,6 +7334,10 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 	/* consumer driver should resume after resuming i2c drivers */
 	&u1_regulator_consumer,
 
+#if defined(CONFIG_WIMAX_CMC)
+	&wmxeeprom_i2c_gpio_device,
+#endif
+
 #ifdef CONFIG_EXYNOS4_DEV_MSHC
 	&s3c_device_mshci,
 #endif
@@ -7716,10 +7767,10 @@ static void __init exynos4_reserve_mem(void)
 
 	static const char map[] __initconst =
 		"android_pmem.0=pmem;android_pmem.1=pmem_gpu1;"
-		"s3cfb.0=fimd;exynos4-fb.0=fimd;"
-		"s3c-fimc.0=fimc0;s3c-fimc.1=fimc1;s3c-fimc.2=fimc2;"
+		"s3cfb.0=fimd;exynos4-fb.0=fimd;samsung-pd.1=fimd;"
+		"s3c-fimc.0=fimc0;s3c-fimc.1=fimc1;s3c-fimc.2=fimc2;s3c-fimc.3=fimc3;"
 		"exynos4210-fimc.0=fimc0;exynos4210-fimc.1=fimc1;"
-		"exynos4210-fimc.2=fimc2;exynos4210-fimc3=fimc3;"
+		"exynos4210-fimc.2=fimc2;exynos4210-fimc.3=fimc3;"
 #ifdef CONFIG_ION_EXYNOS
 		"ion-exynos=ion;"
 #endif
@@ -7993,6 +8044,11 @@ static void __init smdkc210_machine_init(void)
 						ARRAY_SIZE(i2c_devs17_emul));
 #endif
 #endif
+#endif
+
+#if defined(CONFIG_WIMAX_CMC)
+	i2c_register_board_info(18, wmxeeprom_i2c_devices,
+			ARRAY_SIZE(wmxeeprom_i2c_devices));
 #endif
 
 

@@ -189,6 +189,23 @@ void mdm_set_chip_configuration(bool dload)
 	}
 }
 
+void print_mdm_gpio_state(void)
+{
+	pr_info("ap2mdm_status is %s\n",
+			gpio_get_value(mdm_drv->ap2mdm_status_gpio) ?
+				"high" : "low");
+	pr_info("ap2mdm_errfatal is %s\n",
+			gpio_get_value(mdm_drv->ap2mdm_errfatal_gpio) ?
+				"high" : "low");
+	pr_info("mdm2ap_status is %s\n",
+			gpio_get_value(mdm_drv->mdm2ap_status_gpio) ?
+				"high" : "low");
+	pr_info("mdm2ap_errfatal is %s\n",
+			gpio_get_value(mdm_drv->mdm2ap_errfatal_gpio) ?
+				"high" : "low");
+}
+EXPORT_SYMBOL(print_mdm_gpio_state);
+
 static void mdm2ap_status_check(struct work_struct *work)
 {
 	/*
@@ -205,6 +222,30 @@ static void mdm2ap_status_check(struct work_struct *work)
 }
 
 static DECLARE_DELAYED_WORK(mdm2ap_status_check_work, mdm2ap_status_check);
+
+static void mdm_silent_reset(void)
+{
+	pr_info("mdm: silent reset!!\n");
+
+
+	set_shutdown();
+	mdm_drv->mdm_ready = 0;
+	mdm_drv->boot_type = CHARM_NORMAL_BOOT;
+	complete(&mdm_needs_reload);
+	if (!wait_for_completion_timeout(&mdm_boot,
+			msecs_to_jiffies(MDM_BOOT_TIMEOUT))) {
+		mdm_drv->mdm_boot_status = -ETIMEDOUT;
+		pr_info("%s: mdm modem restart timed out.\n", __func__);
+		panic("%s[%p]: Failed to powerup!", __func__, current);
+	} else {
+		pr_info("%s: mdm modem has been restarted\n", __func__);
+
+		/* Log the reason for the restart */
+		if (mdm_drv->pdata->sfr_query)
+			queue_work(mdm_sfr_queue, &sfr_reason_work);
+	}
+	INIT_COMPLETION(mdm_boot);
+}
 
 long mdm_modem_ioctl(struct file *filp, unsigned int cmd,
 				unsigned long arg)
@@ -308,8 +349,12 @@ long mdm_modem_ioctl(struct file *filp, unsigned int cmd,
 		return mdm_drv->proto_is_dload;
 
 	case GET_FORCE_RAMDUMP:
+		get_user(status, (unsigned long __user *) arg);
 		pr_info("%s: mdm get dump mode = %d\n", __func__, force_dump);
-		mdm_force_fatal();
+		if (status)
+			mdm_force_fatal();
+		else
+			mdm_silent_reset();
 		break;
 
 #ifdef CONFIG_SIM_DETECT
@@ -336,6 +381,18 @@ static void mdm_fatal_fn(struct work_struct *work)
 
 static DECLARE_WORK(mdm_fatal_work, mdm_fatal_fn);
 
+static void mdm_reconnect_fn(struct work_struct *work)
+{
+	pr_info("mdm: check 2nd enumeration\n");
+
+	if (mdm_check_main_connect(rmnet_pm_dev))
+		return;
+
+	mdm_silent_reset();
+}
+
+static DECLARE_DELAYED_WORK(mdm_reconnect_work, mdm_reconnect_fn);
+
 static void mdm_status_fn(struct work_struct *work)
 {
 	int value = gpio_get_value(mdm_drv->mdm2ap_status_gpio);
@@ -347,6 +404,8 @@ static void mdm_status_fn(struct work_struct *work)
 	if (value) {
 		request_boot_lock_release(rmnet_pm_dev);
 		request_active_lock_set(rmnet_pm_dev);
+		queue_delayed_work(mdm_queue, &mdm_reconnect_work,
+							msecs_to_jiffies(3000));
 	}
 #endif
 }

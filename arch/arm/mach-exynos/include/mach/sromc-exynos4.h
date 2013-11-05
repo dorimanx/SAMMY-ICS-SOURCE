@@ -23,7 +23,7 @@
 #define GPIO_SROMC_CSn1		EXYNOS4_GPY0(1)
 #define GPIO_SROMC_CSn2		EXYNOS4_GPY0(2)
 #define GPIO_SROMC_CSn3		EXYNOS4_GPY0(3)
-#define GPIO_SROMC_REn		EXYNOS4_GPY0(4)
+#define GPIO_SROMC_OEn		EXYNOS4_GPY0(4)
 #define GPIO_SROMC_WEn		EXYNOS4_GPY0(5)
 #define GPIO_SROMC_LBn		EXYNOS4_GPY1(0)
 #define GPIO_SROMC_UBn		EXYNOS4_GPY1(1)
@@ -150,9 +150,9 @@ static int sromc_config_demux_gpio(struct sromc_bus_cfg *bc)
 		return -EINVAL;
 	}
 
-	/* Configure REn */
-	s3c_gpio_cfgpin(GPIO_SROMC_REn, srom_sfn);
-	s3c_gpio_setpull(GPIO_SROMC_REn, S3C_GPIO_PULL_NONE);
+	/* Configure OEn */
+	s3c_gpio_cfgpin(GPIO_SROMC_OEn, srom_sfn);
+	s3c_gpio_setpull(GPIO_SROMC_OEn, S3C_GPIO_PULL_NONE);
 
 	/* Configure WEn */
 	s3c_gpio_cfgpin(GPIO_SROMC_WEn, srom_sfn);
