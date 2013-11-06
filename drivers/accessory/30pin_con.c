@@ -86,7 +86,7 @@ struct acc_con_info {
 };
 
 #if defined(CONFIG_STMPE811_ADC)
-#ifdef CONFIG_MACH_P4NOTE
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_KONA) || defined(CONFIG_MACH_TAB3)
 #define ACCESSORY_ID_ADC_CH 7
 #else
 #define ACCESSORY_ID_ADC_CH 0
@@ -331,7 +331,7 @@ static void acc_dock_psy(struct acc_con_info *acc)
 	union power_supply_propval value;
 
 /* only support p4note(high current charging) */
-#ifndef CONFIG_MACH_P4NOTE
+#if !defined(CONFIG_MACH_P4NOTE) && !defined(CONFIG_MACH_KONA) && !defined(CONFIG_MACH_TAB3) && !defined(CONFIG_MACH_SP7160LTE)
 	return;
 #endif
 
@@ -414,6 +414,8 @@ static void acc_check_dock_detection(struct acc_con_info *acc)
 			("The dock proves to be a keyboard dock..!");
 			switch_set_state(&acc->dock_switch,
 				UEVENT_DOCK_KEYBOARD);
+			acc->cable_type = POWER_SUPPLY_TYPE_DOCK;
+			acc->cable_sub_type = ONLINE_SUB_TYPE_DESK;
 		} else
 #endif
 		{
@@ -661,7 +663,7 @@ static int acc_con_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_REGULATOR
-#ifndef CONFIG_MACH_P4NOTE
+#if !defined(CONFIG_MACH_P4NOTE) && !defined(CONFIG_MACH_KONA) && !defined(CONFIG_MACH_TAB3) && !defined(CONFIG_MACH_SP7160LTE)
 		/* LDO1 regulator ON */
 		vadc_regulator = regulator_get(&pdev->dev, "vadc_3.3v");
 		if (IS_ERR(vadc_regulator)) {
