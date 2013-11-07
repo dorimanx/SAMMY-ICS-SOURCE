@@ -761,6 +761,52 @@ _cyttsp4_load_app_exit:
  *  0: Do not upgrade firmware
  * !0: Do a firmware upgrade
  */
+#ifdef SAMSUNG_SYSINFO_DATA
+/* Samsung specific version checking function */
+static int cyttsp4_check_version_(struct cyttsp4_device *ttsp, u32 fw_ver_new,
+		u32 fw_revctrl_new_h, u32 fw_revctrl_new_l)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_loader_data *data = dev_get_drvdata(dev);
+	u16 fw_ver_img;
+	u8 hw_ver_img;
+	u8 config_ver_img;
+
+	hw_ver_img = data->si->si_ptrs.samsung_data->hw_version;
+	fw_ver_img = data->si->si_ptrs.samsung_data->fw_versionh <<  8;
+	fw_ver_img += data->si->si_ptrs.samsung_data->fw_versionl;
+	config_ver_img = data->si->si_ptrs.samsung_data->config_version;
+
+	dev_dbg(dev, "%s: img hw vers:0x%01X new hw vers:0x%01X\n", __func__,
+			hw_ver_img, SAMSUNG_HW_VERSION);
+	dev_dbg(dev, "%s: img fw vers:0x%02X new fw vers:0x%02X\n", __func__,
+			fw_ver_img, SAMSUNG_FW_VERSION);
+	dev_dbg(dev, "%s: img config vers:0x%01X new config vers:0x%01X\n",
+		__func__, config_ver_img, SAMSUNG_CONFIG_VERSION);
+
+	if (SAMSUNG_HW_VERSION > hw_ver_img) {
+		dev_dbg(dev, "%s: hw version is newer, will NOT upgrade\n",
+				__func__);
+		return 0;
+	}
+
+	if (SAMSUNG_FW_VERSION > fw_ver_img) {
+		dev_dbg(dev, "%s: Image is newer, will upgrade\n",
+				__func__);
+		return 1;
+	}
+
+	if (SAMSUNG_CONFIG_VERSION > config_ver_img) {
+		dev_dbg(dev, "%s: Image is newer, will upgrade\n",
+				__func__);
+		return 1;
+	}
+
+	/* equal */
+	dev_dbg(dev, "%s: Image is equal, will NOT upgrade\n", __func__);
+	return 0;
+}
+#else
 static int cyttsp4_check_version_(struct cyttsp4_device *ttsp, u32 fw_ver_new,
 		u32 fw_revctrl_new_h, u32 fw_revctrl_new_l)
 {
@@ -828,55 +874,6 @@ static int cyttsp4_check_version_(struct cyttsp4_device *ttsp, u32 fw_ver_new,
 	dev_dbg(dev, "%s: Image is equal, will NOT upgrade\n", __func__);
 	return 0;
 }
-
-#ifdef SAMSUNG_SYSINFO_DATA
-/*
- * return code:
- *  0: Do not upgrade firmware
- * !0: Do a firmware upgrade
- */
-static int cyttsp4_check_samsung_version(struct cyttsp4_device *ttsp)
-{
-	struct device *dev = &ttsp->dev;
-	struct cyttsp4_loader_data *data = dev_get_drvdata(dev);
-	u16 fw_ver_img;
-	u8 hw_ver_img;
-	u8 config_ver_img;
-
-	hw_ver_img = data->si->si_ptrs.samsung_data->hw_version;
-	fw_ver_img = data->si->si_ptrs.samsung_data->fw_versionh <<  8;
-	fw_ver_img += data->si->si_ptrs.samsung_data->fw_versionl;
-	config_ver_img = data->si->si_ptrs.samsung_data->config_version;
-
-	dev_dbg(dev, "%s: img hw vers:0x%01X new hw vers:0x%01X\n", __func__,
-			hw_ver_img, SAMSUNG_HW_VERSION);
-	dev_dbg(dev, "%s: img fw vers:0x%02X new fw vers:0x%02X\n", __func__,
-			fw_ver_img, SAMSUNG_FW_VERSION);
-	dev_dbg(dev, "%s: img config vers:0x%01X new config vers:0x%01X\n",
-		__func__, config_ver_img, SAMSUNG_CONFIG_VERSION);
-
-	if (SAMSUNG_HW_VERSION > hw_ver_img) {
-		dev_dbg(dev, "%s: hw version is newer, will NOT upgrade\n",
-				__func__);
-		return 0;
-	}
-
-	if (SAMSUNG_FW_VERSION > fw_ver_img) {
-		dev_dbg(dev, "%s: Image is newer, will upgrade\n",
-				__func__);
-		return 1;
-	}
-
-	if (SAMSUNG_CONFIG_VERSION > config_ver_img) {
-		dev_dbg(dev, "%s: Image is newer, will upgrade\n",
-				__func__);
-		return 1;
-	}
-
-	/* equal */
-	dev_dbg(dev, "%s: Image is equal, will NOT upgrade\n", __func__);
-	return 0;
-}
 #endif
 
 static int cyttsp4_check_version_platform(struct cyttsp4_device *ttsp,
@@ -895,16 +892,12 @@ static int cyttsp4_check_version_platform(struct cyttsp4_device *ttsp,
 		return CYTTSP4_AUTO_LOAD_FOR_CORRUPTED_FW;
 	}
 
-#ifdef SAMSUNG_SYSINFO_DATA
-	return cyttsp4_check_samsung_version(ttsp);
-#else
 	fw_ver_new = fw->ver[2] << 8;
 	fw_ver_new += fw->ver[3];
 	fw_revctrl_new_h = be32_to_cpu(*(u32 *)(fw->ver + 4));
 	fw_revctrl_new_l = be32_to_cpu(*(u32 *)(fw->ver + 8));
 	return cyttsp4_check_version_(ttsp, fw_ver_new,
 		fw_revctrl_new_h, fw_revctrl_new_l);
-#endif
 }
 
 #ifdef SAMSUNG_CALIBRATION
@@ -937,15 +930,6 @@ static void cyttsp4_fw_calibrate(struct work_struct *calibration_work)
 		goto exit_release;
 	}
 
-	cmd_buf[0] = CY_CMD_CAT_CALIBRATE_IDACS;
-	cmd_buf[1] = 0x00;
-	rc = cyttsp4_request_exec_cmd(ttsp, CY_MODE_CAT,
-			cmd_buf, 2, return_buf, 2, 5000);
-	if (rc < 0) {
-		dev_err(dev, "%s: Unable to execute calibrate command.\n",
-			__func__);
-		goto exit_setmode;
-	}
 
 	cmd_buf[0] = CY_CMD_CAT_CALIBRATE_IDACS;
 	cmd_buf[1] = 0x00; /* Mutual Capacitance Screen */
@@ -1289,9 +1273,10 @@ static void cyttsp4_fw_upgrade(struct work_struct *fw_upgrade)
 static int cyttsp4_load_func(struct cyttsp4_device *ttsp,
 		struct cyttsp4_touch_firmware *fw)
 {
-	if (cyttsp4_check_samsung_version(ttsp))
+#ifdef SAMSUNG_SYSINFO_DATA
+	if (cyttsp4_check_version_(ttsp, 0, 0, 0))
 		return cyttsp4_upgrade_firmware(ttsp, fw->img, fw->size);
-	else
+#endif
 		return 0;
 }
 

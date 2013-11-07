@@ -64,7 +64,12 @@
 #define CY_REG_CAT_CMD              2
 #define CY_CMD_COMPLETE_MASK        (1 << 6)
 #define CY_CMD_MASK                 0x3F
-#define CY_EBID                     0
+
+enum cyttsp4_ic_ebid {
+	CY_TCH_PARM_EBID,
+	CY_MDATA_EBID,
+	CY_DDATA_EBID,
+};
 
 /* touch record system information offset masks and shifts */
 #define CY_BYTE_OFS_MASK            0x1F
@@ -72,6 +77,7 @@
 #define CY_BOFS_SHIFT               5
 
 #define CY_REQUEST_EXCLUSIVE_TIMEOUT	500
+#define CY_COMMAND_COMPLETE_TIMEOUT	500
 
 /* maximum number of concurrent tracks */
 #define CY_NUM_TCH_ID               10

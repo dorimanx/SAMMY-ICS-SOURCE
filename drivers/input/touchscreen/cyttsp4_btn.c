@@ -56,6 +56,7 @@ struct cyttsp4_btn_data {
 	struct early_suspend es;
 	bool is_suspended;
 #endif
+	bool input_device_registered;
 	char phys[NAME_MAX];
 	u8 pr_buf[CY_MAX_PRBUF_SIZE];
 };
@@ -282,7 +283,8 @@ static void cyttsp4_btn_early_suspend(struct early_suspend *h)
 
 	dev_dbg(dev, "%s\n", __func__);
 
-	cyttsp4_btn_lift_all(bd);
+	if (bd->si)
+		cyttsp4_btn_lift_all(bd);
 	pm_runtime_put(dev);
 
 	bd->is_suspended = true;
@@ -296,7 +298,7 @@ static void cyttsp4_btn_late_resume(struct early_suspend *h)
 
 	dev_dbg(dev, "%s\n", __func__);
 
-	pm_runtime_get_sync(dev);
+	pm_runtime_get(dev);
 
 	bd->is_suspended = false;
 }
@@ -309,7 +311,8 @@ static int cyttsp4_btn_suspend(struct device *dev)
 
 	dev_dbg(dev, "%s\n", __func__);
 
-	cyttsp4_btn_lift_all(bd);
+	if (bd->si)
+		cyttsp4_btn_lift_all(bd);
 	return 0;
 }
 
@@ -325,12 +328,57 @@ static const struct dev_pm_ops cyttsp4_btn_pm_ops = {
 	SET_RUNTIME_PM_OPS(cyttsp4_btn_suspend, cyttsp4_btn_resume, NULL)
 };
 
+static int cyttsp4_setup_input_device(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_btn_data *bd = dev_get_drvdata(dev);
+	int i;
+	int rc;
+
+	dev_vdbg(dev, "%s: Initialize event signals\n", __func__);
+
+	__set_bit(EV_KEY, bd->input->evbit);
+	__set_bit(EV_LED, bd->input->evbit);
+	__set_bit(LED_MISC, bd->input->ledbit);
+
+	for (i = 0; i < bd->si->si_ofs.num_btns; i++)
+		__set_bit(bd->si->btn[i].key_code, bd->input->keybit);
+
+	rc = input_register_device(bd->input);
+	if (rc < 0)
+		dev_err(dev, "%s: Error, failed register input device r=%d\n",
+			__func__, rc);
+	else
+		bd->input_device_registered = true;
+
+	return rc;
+}
+
+static int cyttsp4_setup_input_attention(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_btn_data *bd = dev_get_drvdata(dev);
+	int rc;
+
+	dev_vdbg(dev, "%s\n", __func__);
+
+	bd->si = cyttsp4_request_sysinfo(ttsp);
+	if (!bd->si)
+		return -1;
+
+	rc = cyttsp4_setup_input_device(ttsp);
+
+	cyttsp4_unsubscribe_attention(ttsp, CY_ATTEN_STARTUP,
+		cyttsp4_setup_input_attention, 0);
+
+	return rc;
+}
+
 static int cyttsp4_btn_probe(struct cyttsp4_device *ttsp)
 {
 	struct cyttsp4_btn_data *bd;
 	struct device *dev = &ttsp->dev;
 	struct cyttsp4_btn_platform_data *pdata = dev_get_platdata(dev);
-	int i;
 	int rc = 0;
 
 	dev_info(dev, "%s\n", __func__);
@@ -373,26 +421,15 @@ static int cyttsp4_btn_probe(struct cyttsp4_device *ttsp)
 	bd->si = cyttsp4_request_sysinfo(ttsp);
 	pm_runtime_put(dev);
 
-	if (bd->si == NULL) {
+	if (bd->si) {
+		rc = cyttsp4_setup_input_device(ttsp);
+		if (rc)
+			goto error_init_input;
+	} else {
 		dev_err(dev, "%s: Fail get sysinfo pointer from core p=%p\n",
 			__func__, bd->si);
-		rc = -ENODEV;
-		goto error_get_sysinfo;
-	}
-
-	dev_vdbg(dev, "%s: Initialize event signals\n", __func__);
-	__set_bit(EV_KEY, bd->input->evbit);
-	__set_bit(EV_LED, bd->input->evbit);
-	__set_bit(LED_MISC, bd->input->ledbit);
-
-	for (i = 0; i < bd->si->si_ofs.num_btns; i++)
-		__set_bit(bd->si->btn[i].key_code, bd->input->keybit);
-
-	rc = input_register_device(bd->input);
-	if (rc < 0) {
-		dev_err(dev, "%s: Error, failed register input device r=%d\n",
-			__func__, rc);
-		goto error_init_input;
+		cyttsp4_subscribe_attention(ttsp, CY_ATTEN_STARTUP,
+			cyttsp4_setup_input_attention, 0);
 	}
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -407,11 +444,11 @@ static int cyttsp4_btn_probe(struct cyttsp4_device *ttsp)
 	return 0;
 
 error_init_input:
-	input_free_device(bd->input);
-error_get_sysinfo:
 	pm_runtime_suspend(dev);
 	pm_runtime_disable(dev);
+	input_free_device(bd->input);
 error_alloc_failed:
+	dev_set_drvdata(dev, NULL);
 	kfree(bd);
 error_alloc_data_failed:
 	dev_err(dev, "%s failed.\n", __func__);
@@ -436,7 +473,13 @@ static int cyttsp4_btn_release(struct cyttsp4_device *ttsp)
 	unregister_early_suspend(&bd->es);
 #endif
 
-	input_unregister_device(bd->input);
+	if (bd->input_device_registered) {
+		input_unregister_device(bd->input);
+	} else {
+		input_free_device(bd->input);
+		cyttsp4_unsubscribe_attention(ttsp, CY_ATTEN_STARTUP,
+			cyttsp4_setup_input_attention, 0);
+	}
 
 	pm_runtime_suspend(dev);
 	pm_runtime_disable(dev);

@@ -70,6 +70,7 @@ struct cyttsp4_mt_data {
 	struct early_suspend es;
 	bool is_suspended;
 #endif
+	bool input_device_registered;
 	char phys[NAME_MAX];
 	int num_prv_tch;
 	int prv_tch_type;

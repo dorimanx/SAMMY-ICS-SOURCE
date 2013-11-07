@@ -74,6 +74,7 @@ struct cyttsp4_device_access_data {
 	uint32_t ic_grpoffset;
 	bool own_exclusive;
 	uint32_t ebid_row_size;
+	bool sysfs_nodes_created;
 #ifdef VERBOSE_DEBUG
 	u8 pr_buf[CY_MAX_PRBUF_SIZE];
 #endif
@@ -163,7 +164,7 @@ static ssize_t cyttsp4_ic_grpnum_store(struct device *dev,
 	int prev_grpnum;
 	int rc;
 
-	rc = strict_strtoul(buf, 10, &value);
+	rc = kstrtoul(buf, 10, &value);
 	if (rc < 0) {
 		dev_err(dev, "%s: Invalid value\n", __func__);
 		return size;
@@ -236,7 +237,7 @@ static ssize_t cyttsp4_ic_grpoffset_store(struct device *dev,
 	unsigned long value;
 	int ret;
 
-	ret = strict_strtoul(buf, 10, &value);
+	ret = kstrtoul(buf, 10, &value);
 	if (ret < 0) {
 		dev_err(dev, "%s: Invalid value\n", __func__);
 		return size;
@@ -531,7 +532,7 @@ static int cyttsp4_grpdata_show_touch_params(struct device *dev, u8 *ic_buf,
 	cmd_buf[2] = LOW_BYTE(row_offset);
 	cmd_buf[3] = HI_BYTE(dad->ebid_row_size);
 	cmd_buf[4] = LOW_BYTE(dad->ebid_row_size);
-	cmd_buf[5] = CY_EBID;
+	cmd_buf[5] = CY_TCH_PARM_EBID;
 	rc = cyttsp4_request_exec_cmd(dad->ttsp, CY_MODE_CAT,
 			cmd_buf, CY_CMD_CAT_READ_CFG_BLK_CMD_SZ,
 			ic_buf, return_buf_size,
@@ -1310,7 +1311,7 @@ static int cyttsp4_ic_parse_input(struct device *dev, const char *buf,
 			scan_buf[j] = *pbuf++;
 		}
 
-		ret = strict_strtoul(scan_buf, 16, &value);
+		ret = kstrtoul(scan_buf, 16, &value);
 		if (ret < 0) {
 			dev_err(dev, "%s: %s '%s' %s%s i=%d r=%d\n", __func__,
 					"Invalid data format. ", scan_buf,
@@ -1673,6 +1674,74 @@ static const struct dev_pm_ops cyttsp4_device_access_pm_ops = {
 			cyttsp4_device_access_resume)
 };
 
+static int cyttsp4_setup_sysfs(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_device_access_data *dad = dev_get_drvdata(dev);
+	int rc = 0;
+
+	rc = device_create_file(dev, &dev_attr_ic_grpnum);
+	if (rc) {
+		dev_err(dev, "%s: Error, could not create ic_grpnum\n",
+				__func__);
+		goto exit;
+	}
+
+	rc = device_create_file(dev, &dev_attr_ic_grpoffset);
+	if (rc) {
+		dev_err(dev, "%s: Error, could not create ic_grpoffset\n",
+				__func__);
+		goto unregister_grpnum;
+	}
+
+	rc = device_create_file(dev, &dev_attr_ic_grpdata);
+	if (rc) {
+		dev_err(dev, "%s: Error, could not create ic_grpdata\n",
+				__func__);
+		goto unregister_grpoffset;
+	}
+
+	rc = device_create_file(dev, &dev_attr_get_panel_data);
+	if (rc) {
+		dev_err(dev, "%s: Error, could not create get_panel_data\n",
+				__func__);
+		goto unregister_grpdata;
+	}
+
+	dad->sysfs_nodes_created = true;
+	return rc;
+
+unregister_grpdata:
+	device_remove_file(dev, &dev_attr_get_panel_data);
+unregister_grpoffset:
+	device_remove_file(dev, &dev_attr_ic_grpoffset);
+unregister_grpnum:
+	device_remove_file(dev, &dev_attr_ic_grpnum);
+exit:
+	return rc;
+}
+
+static int cyttsp4_setup_sysfs_attention(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_device_access_data *dad = dev_get_drvdata(dev);
+	int rc = 0;
+
+	dev_vdbg(dev, "%s\n", __func__);
+
+	dad->si = cyttsp4_request_sysinfo(ttsp);
+	if (!dad->si)
+		return -1;
+
+	rc = cyttsp4_setup_sysfs(ttsp);
+
+	cyttsp4_unsubscribe_attention(ttsp, CY_ATTEN_STARTUP,
+		cyttsp4_setup_sysfs_attention, 0);
+
+	return rc;
+
+}
+
 static int cyttsp4_device_access_probe(struct cyttsp4_device *ttsp)
 {
 	struct device *dev = &ttsp->dev;
@@ -1696,7 +1765,7 @@ static int cyttsp4_device_access_probe(struct cyttsp4_device *ttsp)
 	init_waitqueue_head(&dad->wait_q);
 	dad->ttsp = ttsp;
 	dad->pdata = pdata;
-	dad->ic_grpnum = 2; /* CY_IC_GRPNUM_TEST_REGS */
+	dad->ic_grpnum = CY_IC_GRPNUM_TCH_REP;
 	dad->test.cur_cmd = -1;
 	dad->heatmap.numElement = 200;
 	dev_set_drvdata(dev, dad);
@@ -1707,39 +1776,15 @@ static int cyttsp4_device_access_probe(struct cyttsp4_device *ttsp)
 	/* get sysinfo */
 	dad->si = cyttsp4_request_sysinfo(ttsp);
 	pm_runtime_put(dev);
-	if (dad->si == NULL) {
+	if (dad->si) {
+		rc = cyttsp4_setup_sysfs(ttsp);
+		if (rc)
+			goto cyttsp4_device_access_setup_sysfs_failed;
+	} else {
 		dev_err(dev, "%s: Fail get sysinfo pointer from core p=%p\n",
 				__func__, dad->si);
-		rc = -ENODEV;
-		goto cyttsp4_device_access_probe_sysinfo_failed;
-	}
-
-	rc = device_create_file(dev, &dev_attr_ic_grpnum);
-	if (rc) {
-		dev_err(dev, "%s: Error, could not create ic_grpnum\n",
-				__func__);
-		goto cyttsp4_device_access_probe_sysinfo_failed;
-	}
-
-	rc = device_create_file(dev, &dev_attr_ic_grpoffset);
-	if (rc) {
-		dev_err(dev, "%s: Error, could not create ic_grpoffset\n",
-				__func__);
-		goto cyttsp4_device_access_probe_unregister_grpnum;
-	}
-
-	rc = device_create_file(dev, &dev_attr_ic_grpdata);
-	if (rc) {
-		dev_err(dev, "%s: Error, could not create ic_grpdata\n",
-				__func__);
-		goto cyttsp4_device_access_probe_unregister_grpoffset;
-	}
-
-	rc = device_create_file(dev, &dev_attr_get_panel_data);
-	if (rc) {
-		dev_err(dev, "%s: Error, could not create get_panel_data\n",
-				__func__);
-		goto cyttsp4_device_access_probe_unregister_get_panel_data;
+		cyttsp4_subscribe_attention(ttsp, CY_ATTEN_STARTUP,
+			cyttsp4_setup_sysfs_attention, 0);
 	}
 
 	/* Stay awake if the current grpnum requires */
@@ -1749,13 +1794,7 @@ static int cyttsp4_device_access_probe(struct cyttsp4_device *ttsp)
 	dev_dbg(dev, "%s: ok\n", __func__);
 	return 0;
 
-cyttsp4_device_access_probe_unregister_get_panel_data:
-	device_remove_file(dev, &dev_attr_get_panel_data);
- cyttsp4_device_access_probe_unregister_grpoffset:
-	device_remove_file(dev, &dev_attr_ic_grpoffset);
- cyttsp4_device_access_probe_unregister_grpnum:
-	device_remove_file(dev, &dev_attr_ic_grpnum);
- cyttsp4_device_access_probe_sysinfo_failed:
+ cyttsp4_device_access_setup_sysfs_failed:
 	pm_runtime_suspend(dev);
 	pm_runtime_disable(dev);
 	dev_set_drvdata(dev, NULL);
@@ -1788,10 +1827,17 @@ static int cyttsp4_device_access_release(struct cyttsp4_device *ttsp)
 
 	pm_runtime_suspend(dev);
 	pm_runtime_disable(dev);
-	device_remove_file(dev, &dev_attr_ic_grpnum);
-	device_remove_file(dev, &dev_attr_ic_grpoffset);
-	device_remove_file(dev, &dev_attr_ic_grpdata);
-	device_remove_file(dev, &dev_attr_get_panel_data);
+
+	if (dad->sysfs_nodes_created) {
+		device_remove_file(dev, &dev_attr_ic_grpnum);
+		device_remove_file(dev, &dev_attr_ic_grpoffset);
+		device_remove_file(dev, &dev_attr_ic_grpdata);
+		device_remove_file(dev, &dev_attr_get_panel_data);
+	} else {
+		cyttsp4_unsubscribe_attention(ttsp, CY_ATTEN_STARTUP,
+			cyttsp4_setup_sysfs_attention, 0);
+	}
+
 	dev_set_drvdata(dev, NULL);
 	kfree(dad);
 	return 0;

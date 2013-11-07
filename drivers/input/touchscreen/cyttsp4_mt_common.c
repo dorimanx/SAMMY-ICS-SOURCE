@@ -442,7 +442,8 @@ static void cyttsp4_mt_early_suspend(struct early_suspend *h)
 
 	dev_dbg(dev, "%s\n", __func__);
 
-	cyttsp4_lift_all(md);
+	if (md->si)
+		cyttsp4_lift_all(md);
 	pm_runtime_put(dev);
 
 	md->is_suspended = true;
@@ -478,7 +479,8 @@ static int cyttsp4_mt_suspend(struct device *dev)
 
 	dev_dbg(dev, "%s\n", __func__);
 
-	cyttsp4_lift_all(md);
+	if (md->si)
+		cyttsp4_lift_all(md);
 	return 0;
 }
 
@@ -495,96 +497,18 @@ const struct dev_pm_ops cyttsp4_mt_pm_ops = {
 	SET_RUNTIME_PM_OPS(cyttsp4_mt_suspend, cyttsp4_mt_resume, NULL)
 };
 
-int cyttsp4_mt_release(struct cyttsp4_device *ttsp)
+static int cyttsp4_setup_input_device(struct cyttsp4_device *ttsp)
 {
 	struct device *dev = &ttsp->dev;
 	struct cyttsp4_mt_data *md = dev_get_drvdata(dev);
-
-	dev_dbg(dev, "%s\n", __func__);
-
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	/*
-	 * This check is to prevent pm_runtime usage_count drop below zero
-	 * because of removing the module while in suspended state
-	 */
-	if (md->is_suspended)
-		pm_runtime_get_noresume(dev);
-
-	unregister_early_suspend(&md->es);
-#endif
-
-	input_unregister_device(md->input);
-
-	pm_runtime_suspend(dev);
-	pm_runtime_disable(dev);
-
-	dev_set_drvdata(dev, NULL);
-	kfree(md);
-	return 0;
-}
-
-static int cyttsp4_mt_probe(struct cyttsp4_device *ttsp)
-{
-	struct device *dev = &ttsp->dev;
-	struct cyttsp4_mt_data *md;
-	struct cyttsp4_mt_platform_data *pdata = dev_get_platdata(dev);
 	int signal = CY_IGNORE_VALUE;
 	int max_x, max_y, max_p, min, max;
 	int max_x_tmp, max_y_tmp;
 	int i;
 	int rc;
 
-	dev_info(dev, "%s\n", __func__);
-	dev_dbg(dev, "%s: debug on\n", __func__);
-	dev_vdbg(dev, "%s: verbose debug on\n", __func__);
-
-	md = kzalloc(sizeof(*md), GFP_KERNEL);
-	if (md == NULL) {
-		dev_err(dev, "%s: Error, kzalloc\n", __func__);
-		rc = -ENOMEM;
-		goto error_alloc_data_failed;
-	}
-
-	cyttsp4_init_function_ptrs(md);
-
-	md->prv_tch_type = CY_OBJ_STANDARD_FINGER;
-	md->ttsp = ttsp;
-	md->pdata = pdata;
-	dev_set_drvdata(dev, md);
-	/* Create the input device and register it. */
-	dev_vdbg(dev, "%s: Create the input device and register it\n",
-		__func__);
-	md->input = input_allocate_device();
-	if (md->input == NULL) {
-		dev_err(dev, "%s: Error, failed to allocate input device\n",
-			__func__);
-		rc = -ENOSYS;
-		goto error_alloc_failed;
-	}
-
-	md->input->name = ttsp->name;
-	scnprintf(md->phys, sizeof(md->phys)-1, "%s", dev_name(dev));
-	md->input->phys = md->phys;
-	md->input->dev.parent = &md->ttsp->dev;
-	md->input->open = cyttsp4_mt_open;
-	md->input->close = cyttsp4_mt_close;
-	input_set_drvdata(md->input, md);
-
-	pm_runtime_enable(dev);
-
-	pm_runtime_get_sync(dev);
-	/* get sysinfo */
-	md->si = cyttsp4_request_sysinfo(ttsp);
-	pm_runtime_put(dev);
-
-	if (md->si == NULL) {
-		dev_err(dev, "%s: Fail get sysinfo pointer from core p=%p\n",
-			__func__, md->si);
-		rc = -ENODEV;
-		goto error_get_sysinfo;
-	}
-
 	dev_vdbg(dev, "%s: Initialize event signals\n", __func__);
+
 	__set_bit(EV_ABS, md->input->evbit);
 	__set_bit(EV_REL, md->input->evbit);
 	__set_bit(EV_KEY, md->input->evbit);
@@ -647,10 +571,128 @@ static int cyttsp4_mt_probe(struct cyttsp4_device *ttsp)
 
 	rc = md->mt_function.input_register_device(md->input,
 			md->si->si_ofs.max_tchs);
-	if (rc < 0) {
+	if (rc < 0)
 		dev_err(dev, "%s: Error, failed register input device r=%d\n",
 			__func__, rc);
-		goto error_init_input;
+	else
+		md->input_device_registered = true;
+
+	return rc;
+}
+
+static int cyttsp4_setup_input_attention(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_mt_data *md = dev_get_drvdata(dev);
+	int rc = 0;
+
+	dev_vdbg(dev, "%s\n", __func__);
+
+	md->si = cyttsp4_request_sysinfo(ttsp);
+	if (!md->si)
+		return -1;
+
+	rc = cyttsp4_setup_input_device(ttsp);
+
+	cyttsp4_unsubscribe_attention(ttsp, CY_ATTEN_STARTUP,
+		cyttsp4_setup_input_attention, 0);
+
+	return rc;
+}
+
+int cyttsp4_mt_release(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_mt_data *md = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "%s\n", __func__);
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	/*
+	 * This check is to prevent pm_runtime usage_count drop below zero
+	 * because of removing the module while in suspended state
+	 */
+	if (md->is_suspended)
+		pm_runtime_get_noresume(dev);
+
+	unregister_early_suspend(&md->es);
+#endif
+
+	if (md->input_device_registered) {
+		input_unregister_device(md->input);
+	} else {
+		input_free_device(md->input);
+		cyttsp4_unsubscribe_attention(ttsp, CY_ATTEN_STARTUP,
+			cyttsp4_setup_input_attention, 0);
+	}
+
+	pm_runtime_suspend(dev);
+	pm_runtime_disable(dev);
+
+	dev_set_drvdata(dev, NULL);
+	kfree(md);
+	return 0;
+}
+
+static int cyttsp4_mt_probe(struct cyttsp4_device *ttsp)
+{
+	struct device *dev = &ttsp->dev;
+	struct cyttsp4_mt_data *md;
+	struct cyttsp4_mt_platform_data *pdata = dev_get_platdata(dev);
+	int rc = 0;
+
+	dev_info(dev, "%s\n", __func__);
+	dev_dbg(dev, "%s: debug on\n", __func__);
+	dev_vdbg(dev, "%s: verbose debug on\n", __func__);
+
+	md = kzalloc(sizeof(*md), GFP_KERNEL);
+	if (md == NULL) {
+		dev_err(dev, "%s: Error, kzalloc\n", __func__);
+		rc = -ENOMEM;
+		goto error_alloc_data_failed;
+	}
+
+	cyttsp4_init_function_ptrs(md);
+
+	md->prv_tch_type = CY_OBJ_STANDARD_FINGER;
+	md->ttsp = ttsp;
+	md->pdata = pdata;
+	dev_set_drvdata(dev, md);
+	/* Create the input device and register it. */
+	dev_vdbg(dev, "%s: Create the input device and register it\n",
+		__func__);
+	md->input = input_allocate_device();
+	if (md->input == NULL) {
+		dev_err(dev, "%s: Error, failed to allocate input device\n",
+			__func__);
+		rc = -ENOSYS;
+		goto error_alloc_failed;
+	}
+
+	md->input->name = ttsp->name;
+	scnprintf(md->phys, sizeof(md->phys)-1, "%s", dev_name(dev));
+	md->input->phys = md->phys;
+	md->input->dev.parent = &md->ttsp->dev;
+	md->input->open = cyttsp4_mt_open;
+	md->input->close = cyttsp4_mt_close;
+	input_set_drvdata(md->input, md);
+
+	pm_runtime_enable(dev);
+
+	pm_runtime_get_sync(dev);
+	/* get sysinfo */
+	md->si = cyttsp4_request_sysinfo(ttsp);
+	pm_runtime_put(dev);
+
+	if (md->si) {
+		rc = cyttsp4_setup_input_device(ttsp);
+		if (rc)
+			goto error_init_input;
+	} else {
+		dev_err(dev, "%s: Fail get sysinfo pointer from core p=%p\n",
+			__func__, md->si);
+		cyttsp4_subscribe_attention(ttsp, CY_ATTEN_STARTUP,
+			cyttsp4_setup_input_attention, 0);
 	}
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -660,12 +702,11 @@ static int cyttsp4_mt_probe(struct cyttsp4_device *ttsp)
 	return 0;
 
 error_init_input:
-	input_free_device(md->input);
-error_get_sysinfo:
 	pm_runtime_suspend(dev);
 	pm_runtime_disable(dev);
-	input_set_drvdata(md->input, NULL);
+	input_free_device(md->input);
 error_alloc_failed:
+	dev_set_drvdata(dev, NULL);
 	kfree(md);
 error_alloc_data_failed:
 	dev_err(dev, "%s failed.\n", __func__);

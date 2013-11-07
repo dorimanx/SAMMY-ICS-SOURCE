@@ -142,7 +142,11 @@ enum {
 struct device *sec_touchscreen;
 static struct device *bus_dev;
 
-int touch_is_pressed;
+int touch_is_pressed = 0;
+
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+static int noise_mode_indicator;
+#endif
 
 #define ISC_DL_MODE	1
 
@@ -258,7 +262,9 @@ struct mms_ts_info {
 
 	struct melfas_tsi_platform_data *pdata;
 	struct early_suspend early_suspend;
-
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	struct early_suspend power_early_suspend;
+#endif
 	/* protects the enabled flag */
 	struct mutex lock;
 	bool enabled;
@@ -311,6 +317,9 @@ struct mms_fw_image {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void mms_ts_early_suspend(struct early_suspend *h);
 static void mms_ts_late_resume(struct early_suspend *h);
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+static void mms_ts_power_late_resume(struct early_suspend *h);
+#endif
 #endif
 
 #if TOUCH_BOOSTER
@@ -655,8 +664,21 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 
 	if (buf[0] == 0x0E) { /* NOISE MODE */
 		dev_dbg(&client->dev, "[TSP] noise mode enter!!\n");
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+		if (noise_mode_indicator == 0) {
+			noise_mode_indicator++;
+			dev_dbg(&client->dev, "[TSP] mms reset by noise mode!!\n");
+			reset_mms_ts(info);
+			info->noise_mode = 0;
+		} else {
+			info->noise_mode = 1 ;
+			dev_dbg(&client->dev, "[TSP] set noise mode!!\n");
+			mms_set_noise_mode(info);
+		}
+#else
 		info->noise_mode = 1 ;
 		mms_set_noise_mode(info);
+#endif
 		goto out;
 	}
 
@@ -2389,7 +2411,7 @@ static void get_fw_ver_bin(void *device_data)
 	snprintf(buff, sizeof(buff), "ME%02X%04X",
 		FW_VERSION_HW, FW_VERSION_4_8);
 #else
-	snprintf(buff, sizeof(buff), "%02x", FW_VERSION_4_8);
+	snprintf(buff, sizeof(buff), "%#02x", FW_VERSION_4_8);
 #endif
 
 	set_cmd_result(info, buff, strnlen(buff, sizeof(buff)));
@@ -2415,7 +2437,7 @@ static void get_fw_ver_ic(void *device_data)
 	snprintf(buff, sizeof(buff), "ME%02X%04X",
 		info->fw_hw_ver, ver);
 #else
-	snprintf(buff, sizeof(buff), "%02x", ver);
+	snprintf(buff, sizeof(buff), "%#02x", ver);
 #endif
 	set_cmd_result(info, buff, strnlen(buff, sizeof(buff)));
 	info->cmd_state = 2;
@@ -3022,6 +3044,10 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 #endif
 	touch_is_pressed = 0;
 
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	noise_mode_indicator = 0;
+#endif
+
 #if 0
 	gpio_request(GPIO_OLED_DET, "OLED_DET");
 	ret = gpio_get_value(GPIO_OLED_DET);
@@ -3174,6 +3200,12 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 	info->early_suspend.suspend = mms_ts_early_suspend;
 	info->early_suspend.resume = mms_ts_late_resume;
 	register_early_suspend(&info->early_suspend);
+
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+	info->power_early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1;
+	info->power_early_suspend.resume = mms_ts_power_late_resume;
+	register_early_suspend(&info->power_early_suspend);
+#endif
 #endif
 
 	sec_touchscreen = device_create(sec_class,
@@ -3271,8 +3303,11 @@ static int mms_ts_resume(struct device *dev)
 
 	dev_notice(&info->client->dev, "%s: users=%d\n", __func__,
 		   info->input_dev->users);
+
+#if !defined(CONFIG_TARGET_LOCALE_KOR)
 	info->pdata->power(true);
 	msleep(120);
+#endif
 
 	if (info->ta_status) {
 		dev_notice(&client->dev, "TA connect!!!\n");
@@ -3308,6 +3343,16 @@ static void mms_ts_late_resume(struct early_suspend *h)
 	info = container_of(h, struct mms_ts_info, early_suspend);
 	mms_ts_resume(&info->client->dev);
 }
+
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+static void mms_ts_power_late_resume(struct early_suspend *h)
+{
+	struct mms_ts_info *info;
+	info = container_of(h, struct mms_ts_info, power_early_suspend);
+
+	info->pdata->power(true);
+}
+#endif
 #endif
 
 #if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND)
