@@ -728,6 +728,7 @@ static __devinit int s5m8767_pmic_probe(struct platform_device *pdev)
 	struct s5m8767_info *s5m8767;
 	struct i2c_client *i2c;
 	int i, ret, size, buck_init;
+	u8 data[28];
 
 	if (!pdata) {
 		dev_err(pdev->dev.parent, "Platform data not supplied\n");
@@ -977,6 +978,13 @@ static __devinit int s5m8767_pmic_probe(struct platform_device *pdev)
 					0x90, 0xf0);
 		}
 	}
+
+	/* all LDO OVCM Disable */
+	for	(i = 0; i < 28; i++)
+		data[i] = 0xA2;
+
+	s5m_bulk_write(i2c, S5M8767_REG_LDO1, 28, data);
+	
 
 	for (i = 0; i < pdata->num_regulators; i++) {
 		const struct s5m_voltage_desc *desc;

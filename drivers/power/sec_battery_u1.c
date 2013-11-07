@@ -537,14 +537,6 @@ static int sec_bat_get_property(struct power_supply *ps,
 		break;
 #endif
 	case POWER_SUPPLY_PROP_CAPACITY:
-#ifdef CONFIG_TARGET_LOCALE_NA
-		if (info->charging_status != POWER_SUPPLY_STATUS_FULL
-		    && info->batt_soc == 100) {
-			val->intval = 99;
-			break;
-		}
-#endif				/*CONFIG_TARGET_LOCALE_NA */
-
 		if (info->charging_status == POWER_SUPPLY_STATUS_FULL) {
 			val->intval = 100;
 			break;
@@ -1797,7 +1789,8 @@ static bool sec_bat_charging_time_management(struct sec_bat_info *info)
 	return false;
 }
 
-#if defined(CONFIG_TARGET_LOCALE_NAATT)
+#if defined(CONFIG_TARGET_LOCALE_NAATT) || \
+	defined(CONFIG_TARGET_LOCALE_NAATT_TEMP)
 static void sec_bat_check_vf_adc(struct sec_bat_info *info)
 {
 	int adc;
@@ -1887,10 +1880,6 @@ static void sec_bat_check_vf(struct sec_bat_info *info)
 			if (info->batt_health == POWER_SUPPLY_HEALTH_GOOD)
 				info->batt_health =
 				    POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
-#if defined(CONFIG_TARGET_LOCALE_NAATT_TEMP)
-			if (pm_power_off)
-				pm_power_off();
-#endif
 		}
 	} else {
 		info->present = BAT_DETECTED;
@@ -2320,10 +2309,11 @@ static void sec_bat_vf_check_work(struct work_struct *work)
 	struct sec_bat_info *info;
 	info = container_of(work, struct sec_bat_info, vf_check_work.work);
 
-	sec_bat_check_vf(info);
-
-#if defined(CONFIG_TARGET_LOCALE_NAATT)
+#if defined(CONFIG_TARGET_LOCALE_NAATT) || \
+	defined(CONFIG_TARGET_LOCALE_NAATT_TEMP)
 	sec_bat_check_vf_adc(info);
+#else
+	sec_bat_check_vf(info);
 #endif
 
 #if (defined(CONFIG_MACH_Q1_BD) && defined(CONFIG_SMB328_CHARGER))
