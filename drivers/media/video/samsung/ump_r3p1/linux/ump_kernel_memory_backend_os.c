@@ -25,7 +25,7 @@
 #include <asm/cacheflush.h>
 #include "ump_kernel_common.h"
 #include "ump_kernel_memory_backend.h"
-
+#include "ump_ukk.h"
 
 
 typedef struct os_allocator
@@ -142,14 +142,26 @@ static int os_allocate(void* ctx, ump_dd_mem * descriptor)
 
 		if (is_cached)
 		{
-			new_page = alloc_page(GFP_KERNEL | __GFP_ZERO | __GFP_NORETRY | __GFP_NOWARN );
+#ifdef CONFIG_SEC_DEBUG_UMP_ALLOC_FAIL
+			new_page = alloc_page(GFP_KERNEL | __GFP_ZERO);
+#else
+			new_page = alloc_page(GFP_HIGHUSER |
+						__GFP_ZERO | __GFP_NOWARN);
+#endif
 		} else
 		{
-			new_page = alloc_page(GFP_KERNEL | __GFP_ZERO | __GFP_NORETRY | __GFP_NOWARN | __GFP_COLD);
+#ifdef CONFIG_SEC_DEBUG_UMP_ALLOC_FAIL
+			new_page = alloc_page(GFP_KERNEL | __GFP_ZERO | __GFP_COLD);
+#else
+			new_page = alloc_page(GFP_HIGHUSER | __GFP_ZERO |
+						__GFP_NOWARN | __GFP_COLD);
+#endif
 		}
 		if (NULL == new_page)
 		{
 			MSG_ERR(("UMP memory allocated: Out of Memory !!\n"));
+			MSG_ERR(("UMP memory usage: %u\n", 
+					_ump_ukk_report_memory_usage()));
 			break;
 		}
 
@@ -193,6 +205,7 @@ static int os_allocate(void* ctx, ump_dd_mem * descriptor)
 			{
 				dma_unmap_page(NULL, descriptor->block_array[pages_allocated].addr, PAGE_SIZE, DMA_BIDIRECTIONAL);
 			}
+
 			__free_page(pfn_to_page(descriptor->block_array[pages_allocated].addr >> PAGE_SHIFT) );
 		}
 

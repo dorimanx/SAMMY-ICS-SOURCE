@@ -39,6 +39,7 @@ int gVolt = 5000;
 
 #include <asm/io.h>
 #include <mach/regs-pmu.h>
+#include <mach/dev.h>
 
 #define EXTXTALCLK_NAME 	"ext_xtal"
 #define VPLLSRCCLK_NAME 	"vpll_src"
@@ -99,6 +100,12 @@ static mali_bool mali_vol_lock_flag = 0;
 
 int  gpu_power_state;
 static int bPoweroff;
+
+struct s_g3d_devfreq{
+	struct device *dev;
+	struct device *bus_dev;
+};
+extern struct s_g3d_devfreq g3d_devfreq;
 
 #ifdef CONFIG_REGULATOR
 struct regulator {
@@ -721,6 +728,9 @@ _mali_osk_errcode_t mali_platform_power_mode_change(mali_power_mode power_mode)
 			MALI_DEBUG_PRINT(1, ("Mali platform: Got MALI_POWER_MODE_ON event, %s\n", bPoweroff ? "powering on" : "already on"));
 			if (bPoweroff == 1)
 			{
+#ifdef CONFIG_BUSFREQ_ELEVATION
+				dev_lock(g3d_devfreq.bus_dev, g3d_devfreq.dev, 400200);
+#endif
 				/** If run time power management is used, donot call this function */
 #ifndef CONFIG_PM_RUNTIME 
 				g3d_power_domain_control(1);
@@ -755,6 +765,9 @@ _mali_osk_errcode_t mali_platform_power_mode_change(mali_power_mode power_mode)
 				//MALI_PRINTF(("Mali Platform powered down"));
 				gpu_power_state=0;
 				bPoweroff=1;
+#ifdef CONFIG_BUSFREQ_ELEVATION
+				dev_unlock(g3d_devfreq.bus_dev, g3d_devfreq.dev);
+#endif
 			}
 
 		break;

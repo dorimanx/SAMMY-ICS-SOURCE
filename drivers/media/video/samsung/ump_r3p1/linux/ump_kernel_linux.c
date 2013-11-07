@@ -92,7 +92,7 @@ static int ump_file_ioctl(struct inode *inode, struct file *filp, unsigned int c
 #endif
 static int ump_file_mmap(struct file * filp, struct vm_area_struct * vma);
 
-#if defined(CONFIG_VIDEO_MALI400MP_UMP)
+#if defined(CONFIG_MALI_400MP_UMP)
 extern int map_errcode( _mali_osk_errcode_t err );
 #endif
 
@@ -400,7 +400,7 @@ static int ump_file_ioctl(struct inode *inode, struct file *filp, unsigned int c
 	return err;
 }
 
-#ifndef CONFIG_VIDEO_MALI400MP_UMP
+#ifndef CONFIG_MALI_400MP_UMP
 int map_errcode( _mali_osk_errcode_t err )
 {
     switch(err)
@@ -482,8 +482,7 @@ EXPORT_SYMBOL(ump_dd_handle_get_from_vaddr);
 EXPORT_SYMBOL(ump_dd_handle_create_from_phys_blocks);
 
 /* Setup init and exit functions for this module */
-//module_init(ump_initialize_module);
-arch_initcall(ump_initialize_module);
+module_init(ump_initialize_module);
 module_exit(ump_cleanup_module);
 
 /* And some module informatio */

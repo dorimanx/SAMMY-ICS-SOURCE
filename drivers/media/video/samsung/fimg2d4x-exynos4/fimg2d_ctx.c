@@ -22,9 +22,50 @@
 #include <linux/cma.h>
 #endif
 
+static inline int is_yuvfmt(enum color_format fmt)
+{
+	switch (fmt) {
+	case CF_YCBCR_420:
+	case CF_YCBCR_422:
+	case CF_YCBCR_444:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+/**
+ * @plane: 0 for 1st plane, 1 for 2nd plane
+ */
+static int yuv_stride(int width, enum color_format cf, enum pixel_order order,
+			int plane)
+{
+	int bpp;
+
+	switch (cf) {
+	case CF_YCBCR_420:
+		bpp = (!plane) ? 8 : 4;
+		break;
+	case CF_YCBCR_422:
+		if (order == P2_CRCB || order == P2_CBCR)
+			bpp = 8;
+		else
+			bpp = (!plane) ? 16 : 0;
+		break;
+	case CF_YCBCR_444:
+		bpp = (!plane) ? 8 : 16;
+		break;
+	default:
+		bpp = 0;
+		break;
+	}
+
+	return width * bpp >> 3;
+}
+
 static int fimg2d_check_params(struct fimg2d_bltcmd *cmd)
 {
-	int w, h, i;
+	int w, h, i, bw;
 	struct fimg2d_param *p = &cmd->param;
 	struct fimg2d_image *img;
 	struct fimg2d_scale *scl;
@@ -57,12 +98,34 @@ static int fimg2d_check_params(struct fimg2d_bltcmd *cmd)
 			r->x1 >= r->x2 || r->y1 >= r->y2)
 			return -1;
 #if defined(CONFIG_CMA)
+#if 0
 		if (img->addr.type == ADDR_PHYS) {
 			if (!cma_is_registered_region(img->addr.start, (h * img->stride))) {
 				printk(KERN_ERR "[%s] Surface[%d] is not included in CMA region\n", __func__, i);
 				return -1;
 			}
 		}
+#else
+		if (img->addr.type == ADDR_PHYS) {
+			if (is_yuvfmt(img->fmt))
+				bw = yuv_stride(img->width, img->fmt, img->order, 0);
+			else
+				bw = img->stride;
+
+			if (!cma_is_registered_region(img->addr.start, (h * bw))) {
+				printk(KERN_ERR "[%s] Surface[%d] is not included in CMA region\n", __func__, i);
+				 return -1;
+			}
+
+			if (img->order == P2_CRCB || img->order == P2_CBCR) {
+				bw = yuv_stride(img->width, img->fmt, img->order, 1);
+				if (!cma_is_registered_region(img->plane2.start, (h * bw))) {
+					printk(KERN_ERR "[%s] plane2[%d] is not included in CMA region\n", __func__, i);
+					return -1;
+				}
+			}
+		}
+#endif
 #endif
 	}
 

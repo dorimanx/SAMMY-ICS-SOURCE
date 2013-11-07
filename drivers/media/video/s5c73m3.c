@@ -3388,7 +3388,7 @@ static int s5c73m3_read_vdd_core(struct v4l2_subdev *sd)
 	u16 read_val;
 	u32 vdd_core_val = 0;
 	int err;
-	struct file *fp;
+	struct file *fp = NULL;
 	mm_segment_t old_fs;
 
 	cam_trace("E\n");
@@ -3455,13 +3455,8 @@ static int s5c73m3_read_vdd_core(struct v4l2_subdev *sd)
 		vdd_core_val = 1150000;
 	} else if (read_val & 0x800) {
 		strcpy(sysfs_isp_core, "1.10V");
-#if defined(CONFIG_MACH_M3) || defined(CONFIG_MACH_M0_DUOSCTC)
 		state->pdata->set_vdd_core(1150000);
 		vdd_core_val = 1150000;
-#else
-		state->pdata->set_vdd_core(1100000);
-		vdd_core_val = 1100000;
-#endif
 	} else if (read_val & 0x2000) {
 		strcpy(sysfs_isp_core, "1.05V");
 		state->pdata->set_vdd_core(1100000);
@@ -3481,8 +3476,10 @@ static int s5c73m3_read_vdd_core(struct v4l2_subdev *sd)
 
 	fp = filp_open(S5C73M3_CORE_VDD,
 		O_WRONLY|O_CREAT|O_TRUNC, 0644);
-	if (IS_ERR(fp))
+	if (IS_ERR(fp)) {
+		cam_err("can't open vdd file\n");
 		goto out;
+	}
 
 	buf = vmalloc(10);
 	if (!buf) {
@@ -3499,7 +3496,7 @@ out:
 	if (buf != NULL)
 		vfree(buf);
 
-	if (fp !=  NULL)
+	if (!IS_ERR(fp) && fp !=  NULL)
 		filp_close(fp, current->files);
 
 	set_fs(old_fs);

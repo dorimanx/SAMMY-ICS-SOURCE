@@ -55,10 +55,6 @@ static LIST_HEAD(mfc_encoders);
 	ctx->ctxbufofs = mfc_mem_base_ofs(alloc->real) >> 11;
 	ctx->ctxbufsize = alloc->size;
 
-	memset((void *)alloc->addr, 0, alloc->size);
-
-	mfc_mem_cache_clean((void *)alloc->addr, alloc->size);
-
 	return 0;
 }
 
@@ -101,7 +97,7 @@ int get_init_arg(struct mfc_inst_ctx *ctx, void *arg)
 		write_reg((1 << 1) | 0x1, MFC_ENC_MSLICE_CTRL);
 		if (init_arg->cmn.in_ms_arg < 1900)
 			init_arg->cmn.in_ms_arg = 1900;
-		write_reg(init_arg->cmn.in_ms_arg, MFC_ENC_MSLICE_BIT);
+		write_reg(init_arg->cmn.in_ms_arg * 8, MFC_ENC_MSLICE_BIT);
 	} else {
 		write_reg(0, MFC_ENC_MSLICE_CTRL);
 		write_reg(0, MFC_ENC_MSLICE_MB);

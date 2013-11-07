@@ -972,11 +972,9 @@ static int s5k5bafx_set_frame_rate(struct v4l2_subdev *sd, u32 fps)
 		return 0;
 	}
 
-	if (state->sensor_mode != SENSOR_MOVIE) {
-		err = s5k5bafx_set_from_table(sd, "fps", state->regs->fps,
-			ARRAY_SIZE(state->regs->fps), fps_index);
-		CHECK_ERR_MSG(err, "fail to set framerate\n")
-	}
+	err = s5k5bafx_set_from_table(sd, "fps", state->regs->fps,
+		ARRAY_SIZE(state->regs->fps), fps_index);
+	CHECK_ERR_MSG(err, "fail to set framerate\n")
 
 	return 0;
 }

@@ -305,11 +305,12 @@ static void level1_cache_flush_all(void)
 	DBG_MSG(4, ("UMP[xx] Flushing complete L1 cache\n"));
 	__cpuc_flush_kern_all();
 }
-
+#ifdef CONFIG_SEC_DEBUG_UMP_ALLOC_FAIL
 void _ump_osk_msync( ump_dd_mem * mem, void * virt, u32 offset, u32 size, ump_uk_msync_op op, ump_session_data * session_data )
 {
 	int i;
 	const void *start_v, *end_v;
+
 
 	/* Flush L1 using virtual address, the entire range in one go.
 	 * Only flush if user space process has a valid write mapping on given address. */
@@ -446,7 +447,24 @@ void _ump_osk_msync( ump_dd_mem * mem, void * virt, u32 offset, u32 size, ump_uk
 
 	return;
 }
+#else
+void _ump_osk_msync( ump_dd_mem * mem, void * virt, u32 offset, u32 size, ump_uk_msync_op op, ump_session_data * session_data )
+{
+	DBG_MSG(3,
+		("Flushing nr of blocks: %u. First: paddr: 0x%08x vaddr: 0x%08x size:%dB\n",
+		 mem->nr_blocks, mem->block_array[0].addr,
+		 phys_to_virt(mem->block_array[0].addr),
+		 mem->block_array[0].size));
 
+	flush_all_cpu_caches();
+#ifdef CONFIG_CACHE_L2X0
+	if ((op == _UMP_UK_MSYNC_CLEAN_AND_INVALIDATE))
+		outer_flush_all();
+	else
+		outer_clean_all();
+#endif
+}
+#endif
 void _ump_osk_mem_mapregion_get( ump_dd_mem ** mem, unsigned long vaddr)
 {
 	struct mm_struct *mm = current->mm;

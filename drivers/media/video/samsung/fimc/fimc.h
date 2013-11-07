@@ -41,6 +41,10 @@
 #include <linux/pm_runtime.h>
 #endif
 
+#if defined(CONFIG_MACH_GC2PD) || defined(CONFIG_MACH_GD2)
+#define FIMC_FRAME_START_END_IRQ_ENABLE
+#endif
+
 #define FIMC_NAME		"s3c-fimc"
 #define FIMC_CMA_NAME		"fimc"
 
@@ -113,6 +117,13 @@ extern int fimc_clk_rate(void);
 
 #define L2_FLUSH_ALL	SZ_1M
 #define L1_FLUSH_ALL	SZ_64K
+
+#if defined(CONFIG_MACH_GD2)
+#define U1_PREVIEW_WSIZE 1296
+#define U1_PREVIEW_HSIZE 720
+#define U1_WINDOW_OFFSETH 8
+#define U1_WINDOW_OFFSETH2 8
+#endif
 
 /*
  * ENUMERATIONS
@@ -626,6 +637,7 @@ extern int fimc_try_fmt_vid_capture(struct file *file, void *fh, struct v4l2_for
 extern int fimc_reqbufs_capture(void *fh, struct v4l2_requestbuffers *b);
 extern int fimc_querybuf_capture(void *fh, struct v4l2_buffer *b);
 extern int fimc_g_ctrl_capture(void *fh, struct v4l2_control *c);
+extern int fimc_noti_ctrl_capture(void *fh, struct v4l2_noti_control *c);
 extern int fimc_g_ext_ctrls_capture(void *fh, struct v4l2_ext_controls *c);
 extern int fimc_s_ctrl_capture(void *fh, struct v4l2_control *c);
 extern int fimc_s_ext_ctrls_capture(void *fh, struct v4l2_ext_controls *c);
@@ -701,6 +713,7 @@ extern int fimc_hwset_clear_irq(struct fimc_control *ctrl);
 extern int fimc_hwset_reset(struct fimc_control *ctrl);
 extern int fimc_hwset_sw_reset(struct fimc_control *ctrl);
 extern int fimc_hwget_frame_end(struct fimc_control *ctrl);
+extern int fimc_hwget_frame_end_sync(struct fimc_control *ctrl);
 extern int fimc_hwset_clksrc(struct fimc_control *ctrl, int src_clk);
 extern int fimc_hwget_overflow_state(struct fimc_control *ctrl);
 extern int fimc_hwset_camera_offset(struct fimc_control *ctrl);

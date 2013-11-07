@@ -551,6 +551,8 @@ static int wm8994_device_init(struct wm8994 *wm8994, int irq)
 		wm8994_reg_write(wm8994, 0xd4, 0x3f3f);
 		wm8994_reg_write(wm8994, 0xd5, 0x3f3f);
 		wm8994_reg_write(wm8994, 0xd6, 0x3226);
+		wm8994_reg_write(wm8994, 0x4c, 0x991f);
+		wm8994_reg_write(wm8994, 0x4d, 0x2513);
 		wm8994_reg_write(wm8994, 0x102, 0x0);
 		wm8994_reg_write(wm8994, 0xd1, 0x87);
 		wm8994_reg_write(wm8994, 0x3b, 0x9);

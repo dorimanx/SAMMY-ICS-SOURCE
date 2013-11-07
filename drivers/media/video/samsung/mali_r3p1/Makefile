@@ -44,16 +44,16 @@ ifeq ($(CONFIG_PM_RUNTIME),y)
 endif
 endif
 
-ifeq ($(CONFIG_VIDEO_MALI400MP_DVFS),y)
+ifeq ($(CONFIG_MALI_400MP_UMP_DVFS),y)
 USING_GPU_UTILIZATION=1
 USING_MALI_DVFS_ENABLED=1
 endif
 
-ifeq ($(CONFIG_VIDEO_MALI400MP_UMP_DEBUG),y)
+ifeq ($(CONFIG_MALI_400MP_UMP_DEBUG),y)
 BUILD=debug
 endif
 
-ifeq ($(CONFIG_VIDEO_MALI400MP_STREAMLINE_PROFILING),y)
+ifeq ($(CONFIG_MALI_400MP_UMP_STREAMLINE_PROFILING),y)
 USING_PROFILING=1
 USING_TRACEPOINTS=1
 endif
@@ -97,14 +97,11 @@ MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP ?= 0
 MALI_PP_SCHEDULER_KEEP_SUB_JOB_STARTS_ALIGNED ?= 0
 MALI_PP_SCHEDULER_FORCE_NO_JOB_OVERLAP_BETWEEN_APPS ?= 0
 
-# Get path to driver source from Linux build system
 ifeq ($(USING_PROFILING),1)
-ifeq ($(USING_INTERNAL_PROFILING),0)
 ifndef CONFIG_TRACEPOINTS
 # Should default to gator profiling, but we dont have the kernel feature required, so disable profiling
 override USING_PROFILING = 0
 $(warning "CONFIG_TRACEPOINTS required for USING_PROFILING")
-endif
 endif
 endif
 
@@ -171,7 +168,7 @@ endif
 DEFINES += -DMALI_UKK_HAS_IMPLICIT_MMAP_CLEANUP
 
 # UMP
-ifeq ($(CONFIG_VIDEO_MALI400MP_UMP),y)
+ifeq ($(CONFIG_MALI_400MP_UMP),y)
 	DEFINES += -DMALI_USE_UNIFIED_MEMORY_PROVIDER=1
 	EXTRA_CFLAGS += -I$(MALI_INCLUDE_PREFIX)../ump_r3p1/include
 else
@@ -179,7 +176,7 @@ else
 endif
 
 # Target build file
-obj-$(CONFIG_VIDEO_MALI400MP_UMP)	+= mali.o
+obj-$(CONFIG_MALI_400MP_UMP)	+= mali.o
 
 # Use our defines when compiling
 # MALI
@@ -199,7 +196,7 @@ EXTRA_CFLAGS += -I$(MALI_INCLUDE_PREFIX)linux/license/gpl
 EXTRA_CFLAGS += -I$(MALI_INCLUDE_PREFIX)common/pmm
 
 # Source files which always are included in a build
-ifeq ($(CONFIG_VIDEO_MALI400MP_UMP),y)
+ifeq ($(CONFIG_MALI_400MP_UMP),y)
 OSKFILES=\
         $(FILES_PREFIX)$(OSKOS)/mali_osk_irq.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_wait_queue.o \
@@ -222,7 +219,7 @@ OSKFILES=\
         $(FILES_PREFIX)$(OSKOS)/mali_osk_notification.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_time.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_timers.o
-endif #($(CONFIG_VIDEO_MALI400MP_UMP),y)
+endif #($(CONFIG_MALI_400MP_UMP),y)
 
 ifeq ($(CONFIG_CPU_EXYNOS4210),y)
 	MALI_PLATFORM_DIR = platform/orion-m400
@@ -281,16 +278,15 @@ mali-y := \
 #	__malidrv_build_info.c
 
 # Selecting files to compile by parsing the config file
+ifeq ($(USING_PROFILING),1)
+SRC += \
+    linux/mali_osk_profiling.c
 
 ifeq ($(USING_INTERNAL_PROFILING),1)
-PROFILING_BACKEND_SOURCES = \
-	linux/mali_osk_profiling_internal.o \
-	timestamp-$(TIMESTAMP)/mali_timestamp.o
-EXTRA_CFLAGS += -I$(MALI_INCLUDE_PREFIX)timestamp-$(TIMESTAMP)
-else
-ifeq ($(USING_PROFILING),1)
-PROFILING_BACKEND_SOURCES = \
-	linux/mali_osk_profiling_gator.o
+SRC += \
+    linux/mali_profiling_internal.c \
+    timestamp-$(TIMESTAMP)/mali_timestamp.c
+ccflags-y += -I$(DRIVER_DIR)/timestamp-$(TIMESTAMP)
 endif
 endif
 

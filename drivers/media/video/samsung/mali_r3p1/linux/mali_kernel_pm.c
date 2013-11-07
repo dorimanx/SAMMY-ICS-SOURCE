@@ -22,6 +22,7 @@
 #ifdef CONFIG_PM_RUNTIME
 #include <linux/pm_runtime.h>
 #endif
+#include <mach/dev.h>
 #include "mali_osk.h"
 #include "mali_uk_types.h"
 #include "mali_kernel_common.h"
@@ -53,6 +54,11 @@ static int mali_os_suspend(struct device *dev);
 static int mali_os_resume(struct device *dev);
 #endif
 
+struct s_g3d_devfreq {
+	struct device *dev;
+	struct device *bus_dev;
+};
+struct s_g3d_devfreq g3d_devfreq;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29))
 static const struct dev_pm_ops mali_dev_pm_ops =
@@ -132,6 +138,8 @@ struct platform_device mali_gpu_device =
 /** This function is called when the device is probed */
 static int mali_probe(struct platform_device *pdev)
 {
+	g3d_devfreq.dev = &pdev->dev;
+	g3d_devfreq.bus_dev = dev_get("exynos-busfreq");
 	return 0;
 }
 

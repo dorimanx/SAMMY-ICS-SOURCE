@@ -188,6 +188,9 @@ static u32 _kernel_page_allocate(void)
 
 	if ( NULL == new_page )
 	{
+		printk(KERN_ERR "MALI: Out of Memory\n");
+		printk(KERN_ERR "MALI: Memory usage %u\n",
+				_mali_ukk_report_memory_usage());
 		return 0;
 	}
 

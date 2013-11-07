@@ -18,7 +18,7 @@
 #include "mali_kernel_core.h"
 #include "mali_group.h"
 
-#define MALI_PM_LIGHT_SLEEP_TIMEOUT 1000
+#define MALI_PM_LIGHT_SLEEP_TIMEOUT 250
 
 enum mali_pm_scheme
 {
@@ -530,13 +530,17 @@ void mali_pm_os_suspend(void)
 
 void mali_pm_os_resume(void)
 {
-	MALI_DEBUG_PRINT(2, ("Mali PM: OS resuming...\n"));
+	/* MALI_DEBUG_PRINT(2, ("Mali PM: OS resuming...\n")); */
+	printk(KERN_INFO "Mali PM: OS resuming...\n");
 
 	mali_pm_event(MALI_PM_EVENT_OS_RESUME, MALI_FALSE, 0); /* process event in same thread */
+	printk(KERN_INFO "Mali PM: gp scheduler resume\n");
 	mali_gp_scheduler_resume();
+	printk(KERN_INFO "Mali PM: pp scheduler resume\n");
 	mali_pp_scheduler_resume();
 
-	MALI_DEBUG_PRINT(2, ("Mali PM: OS resume completed\n"));
+	/* MALI_DEBUG_PRINT(2, ("Mali PM: OS resume completed\n")); */
+	printk(KERN_INFO "Mali PM: OS resume completed\n");
 }
 
 void mali_pm_runtime_suspend(void)
