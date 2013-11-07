@@ -29,8 +29,10 @@
 
 wait_queue_head_t init_wq;
 static atomic_t init_done = ATOMIC_INIT(0);
+
+
 int android_readwrite_file(const char *filename,
-				char *rbuf, const char *wbuf, size_t length)
+			   char *rbuf, const char *wbuf, size_t length)
 {
 	int ret = 0;
 	struct file *filp = (struct file *)-ENOENT;

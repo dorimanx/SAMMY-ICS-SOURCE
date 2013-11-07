@@ -2508,6 +2508,9 @@ int ath6kl_htc_conn_service(struct htc_target *target,
 	case WMI_DATA_BK_SVC:
 		endpoint->tx_drop_packet_threshold = MAX_DEF_COOKIE_NUM / 3;
 		break;
+	case WMI_DATA_VO_SVC:
+		endpoint->tx_drop_packet_threshold = DATA_SYNC_RESERVED;
+		break;
 	default:
 		endpoint->tx_drop_packet_threshold = MAX_HI_COOKIE_NUM;
 		break;
