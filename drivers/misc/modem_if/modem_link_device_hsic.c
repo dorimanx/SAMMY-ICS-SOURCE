@@ -1453,8 +1453,7 @@ static int usb_link_pm_init(struct usb_link_device *usb_ld, void *data)
 	struct modem_data *pdata =
 			(struct modem_data *)pdev->dev.platform_data;
 	struct modemlink_pm_data *pm_pdata;
-	struct link_pm_data *pm_data =
-			kzalloc(sizeof(struct link_pm_data), GFP_KERNEL);
+	struct link_pm_data *pm_data;
 
 	if (!pdata || !pdata->link_pm_data) {
 		mif_err("platform data is NULL\n");
@@ -1462,6 +1461,7 @@ static int usb_link_pm_init(struct usb_link_device *usb_ld, void *data)
 	}
 	pm_pdata = pdata->link_pm_data;
 
+	pm_data = kzalloc(sizeof(struct link_pm_data), GFP_KERNEL);
 	if (!pm_data) {
 		mif_err("link_pm_data is NULL\n");
 		return -ENOMEM;
